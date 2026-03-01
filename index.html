@@ -6,20 +6,42 @@
     <title>TEA & COFFEE POS - Daily Counter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+        /* 原有基礎樣式 */
+        body { 
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
+            height: 100dvh; /* 修正 1：動態計算高度，避開 iPad 工具列 */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
         .active-nav { background-color: #334155 !important; color: white !important; }
         .category-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; color: #1d4ed8 !important; }
         * { -webkit-tap-highlight-color: transparent; }
+        
+        /* 滾動條樣式 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* 紀錄卡片動畫 */
         .record-card { transition: all 0.2s ease; }
         .record-card.removing { opacity: 0; transform: translateX(50px); }
+
+        /* 修正 2：確保右側購物車底部不會被蓋住 */
+        #pos-page > div:last-child {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        /* 修正 3：微調結帳按鈕大小，增加可見度 */
+        button[onclick*="openCheckoutModal"] {
+            padding-top: 0.8rem !important;
+            padding-bottom: 0.8rem !important;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 h-screen flex flex-col overflow-hidden text-slate-800">
 
-    <!-- 導覽列 -->
     <header class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-lg shrink-0">
         <div class="flex items-center gap-6">
             <h1 class="text-xl font-black tracking-tight uppercase text-blue-400">三宅千金 POS</h1>
@@ -31,17 +53,14 @@
         <div id="clock-display" class="text-sm font-mono opacity-90 bg-slate-800 px-3 py-1 rounded border border-slate-700 leading-relaxed text-right"></div>
     </header>
 
-    <!-- 主內容區 -->
     <div id="main-container" class="flex-1 flex overflow-hidden">
         
-        <!-- [點餐頁面] -->
         <div id="pos-page" class="flex flex-1 overflow-hidden">
             <div class="w-2/3 flex flex-col bg-white border-r">
                 <div id="category-bar" class="flex p-3 gap-2 overflow-x-auto bg-gray-50 border-b"></div>
                 <div id="menu-grid" class="flex-1 p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 content-start"></div>
             </div>
 
-            <!-- 右側購物車 -->
             <div class="w-1/3 flex flex-col bg-gray-50 shadow-inner">
                 <div class="p-4 border-b flex justify-between items-center bg-white">
                     <h2 class="font-bold text-lg flex items-center gap-2">🛒 當前購物車</h2>
@@ -61,7 +80,6 @@
             </div>
         </div>
 
-        <!-- [歷史頁面] -->
         <div id="history-page" class="hidden flex-1 flex flex-col overflow-hidden bg-gray-100">
             <div class="p-6 flex justify-between items-end bg-white border-b shadow-sm">
                 <div>
@@ -73,7 +91,6 @@
                         <p class="text-xs text-gray-500 font-bold uppercase tracking-widest">今日營收額</p>
                         <p class="text-2xl font-black text-green-600">NT$ <span id="history-today-total">0</span></p>
                     </div>
-                    <!-- 匯出按鈕 -->
                     <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-blue-500 flex items-center gap-2 transition-all" onclick="window.exportToExcel()">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         匯出備份
@@ -87,7 +104,6 @@
         </div>
     </div>
 
-    <!-- 通用確認彈窗 -->
     <div id="common-confirm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl text-center">
             <div id="confirm-modal-icon" class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">⚠️</div>
@@ -100,7 +116,6 @@
         </div>
     </div>
 
-    <!-- 甜點金額/結帳彈窗 -->
     <div id="price-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
         <div class="bg-white p-8 rounded-3xl w-full max-w-xs shadow-xl text-center">
             <h3 class="text-xl font-bold mb-6">今日甜點金額</h3>
@@ -124,6 +139,15 @@
     </div>
 
     <script>
+        // 註冊 Service Worker 讓 App 支援離線開啟
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('離線功能已啟動', reg))
+                    .catch(err => console.log('註冊失敗', err));
+            });
+        }
+
         const MENU = {
             'tea': [{ name: '玉山高山茶', price: 80 }, { name: '杉林溪高山茶', price: 90 }, { name: '福壽山手路茶', price: 140 }, { name: '東方美人茶', price: 140 }, { name: '鐵觀音', price: 140 }, { name: '紅茶', price: 160 }, { name: '普洱茶', price: 180 }],
             'coffee': [{ name: '美式咖啡(I)', price: 80 }, { name: '美式咖啡(H)', price: 70 }, { name: '美式咖啡(外)', price: 50 }, { name: '拿鐵咖啡(I)', price: 120 }, { name: '拿鐵咖啡(H)', price: 110 }, { name: '拿鐵咖啡(外)', price: 60 }, { name: '手沖咖啡(H)', price: 90 }],
