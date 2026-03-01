@@ -1,3 +1,11 @@
+// 註冊 Service Worker 讓 App 支援離線開啟 
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('離線功能已啟動', reg))
+            .catch(err => console.log('註冊失敗', err));
+    });
+}
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
