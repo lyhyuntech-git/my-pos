@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEA & COFFEE POS - Daily Counter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+        .active-nav { background-color: #334155 !important; color: white !important; }
+        .category-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; color: #1d4ed8 !important; }
+        * { -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .record-card { transition: all 0.2s ease; }
+        .record-card.removing { opacity: 0; transform: translateX(50px); }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- 導覽列 -->
+    <header class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-lg shrink-0">
+        <div class="flex items-center gap-6">
+            <h1 class="text-xl font-black tracking-tight uppercase text-blue-400">三宅千金 POS</h1>
+            <div class="flex bg-slate-800 rounded-lg p-1">
+                <button id="nav-pos-btn" class="px-6 py-2 rounded-md text-sm font-bold active-nav" onclick="window.switchPage('pos')">點餐系統</button>
+                <button id="nav-history-btn" class="px-6 py-2 rounded-md text-sm font-bold" onclick="window.switchPage('history')">歷史帳單</button>
+            </div>
+        </div>
+        <div id="clock-display" class="text-sm font-mono opacity-90 bg-slate-800 px-3 py-1 rounded border border-slate-700 leading-relaxed text-right"></div>
+    </header>
+
+    <!-- 主內容區 -->
+    <div id="main-container" class="flex-1 flex overflow-hidden">
+        
+        <!-- [點餐頁面] -->
+        <div id="pos-page" class="flex flex-1 overflow-hidden">
+            <div class="w-2/3 flex flex-col bg-white border-r">
+                <div id="category-bar" class="flex p-3 gap-2 overflow-x-auto bg-gray-50 border-b"></div>
+                <div id="menu-grid" class="flex-1 p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 content-start"></div>
+            </div>
+
+            <!-- 右側購物車 -->
+            <div class="w-1/3 flex flex-col bg-gray-50 shadow-inner">
+                <div class="p-4 border-b flex justify-between items-center bg-white">
+                    <h2 class="font-bold text-lg flex items-center gap-2">🛒 當前購物車</h2>
+                </div>
+                <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm"></div>
+                <div class="p-6 bg-slate-900 text-white shadow-2xl">
+                    <div class="flex justify-between mb-2 opacity-60 text-xs">
+                        <span>品項數量</span>
+                        <span id="cart-total-qty">0</span>
+                    </div>
+                    <div class="flex justify-between items-end mb-6">
+                        <span class="text-lg">總計金額</span>
+                        <span class="text-3xl font-black text-yellow-400">NT$ <span id="cart-total-price">0</span></span>
+                    </div>
+                    <button class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-all" onclick="window.openCheckoutModal()">確認結帳</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- [歷史頁面] -->
+        <div id="history-page" class="hidden flex-1 flex flex-col overflow-hidden bg-gray-100">
+            <div class="p-6 flex justify-between items-end bg-white border-b shadow-sm">
+                <div>
+                    <h2 class="text-2xl font-black italic mb-1 uppercase tracking-tight">銷售歷史紀錄</h2>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">* 僅保留最近 100 筆交易紀錄</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500 font-bold uppercase tracking-widest">今日營收額</p>
+                        <p class="text-2xl font-black text-green-600">NT$ <span id="history-today-total">0</span></p>
+                    </div>
+                    <!-- 匯出按鈕 -->
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-blue-500 flex items-center gap-2 transition-all" onclick="window.exportToExcel()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        匯出備份
+                    </button>
+                    <button class="bg-slate-100 text-slate-400 p-2 rounded-lg hover:bg-red-50 hover:text-red-500 transition-all" onclick="window.askClearAll()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="history-list-container" class="flex-1 overflow-y-auto p-6 space-y-8"></div>
+        </div>
+    </div>
+
+    <!-- 通用確認彈窗 -->
+    <div id="common-confirm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl text-center">
+            <div id="confirm-modal-icon" class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">⚠️</div>
+            <h3 id="confirm-modal-title" class="text-xl font-bold mb-2">確定操作？</h3>
+            <p id="confirm-modal-desc" class="text-gray-500 mb-8 text-sm">此操作無法撤銷</p>
+            <div class="flex gap-4">
+                <button class="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-500" onclick="window.closeConfirmModal()">取消</button>
+                <button id="confirm-action-btn" class="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 甜點金額/結帳彈窗 -->
+    <div id="price-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-xs shadow-xl text-center">
+            <h3 class="text-xl font-bold mb-6">今日甜點金額</h3>
+            <input type="number" id="custom-price-input" class="w-full text-4xl font-black border-b-4 border-blue-500 py-4 mb-8 text-center outline-none" inputmode="numeric" placeholder="0">
+            <div class="flex gap-4">
+                <button onclick="window.toggleModal('price-modal', false)" class="flex-1 py-3 bg-gray-100 font-bold rounded-xl">取消</button>
+                <button onclick="window.addCustomItem()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl">加入</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkout-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-md overflow-hidden shadow-xl">
+            <div class="bg-blue-600 p-6 text-white text-center font-bold text-2xl">結帳核對</div>
+            <div id="checkout-modal-content" class="p-6 max-h-[60vh] overflow-y-auto"></div>
+            <div class="p-6 bg-gray-50 flex gap-4 border-t">
+                <button onclick="window.toggleModal('checkout-modal', false)" class="flex-1 py-4 border rounded-2xl font-bold bg-white shadow-sm">修改</button>
+                <button onclick="window.finalizeTransaction()" class="flex-1 py-4 bg-green-600 text-white font-bold rounded-2xl shadow-lg">完成交易</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MENU = {
+            'tea': [{ name: '玉山高山茶', price: 80 }, { name: '杉林溪高山茶', price: 90 }, { name: '福壽山手路茶', price: 140 }, { name: '東方美人茶', price: 140 }, { name: '鐵觀音', price: 140 }, { name: '紅茶', price: 160 }, { name: '普洱茶', price: 180 }],
+            'coffee': [{ name: '美式咖啡(I)', price: 80 }, { name: '美式咖啡(H)', price: 70 }, { name: '美式咖啡(外)', price: 50 }, { name: '拿鐵咖啡(I)', price: 120 }, { name: '拿鐵咖啡(H)', price: 110 }, { name: '拿鐵咖啡(外)', price: 60 }, { name: '手沖咖啡(H)', price: 90 }],
+            'non-caffeine': [{ name: '檸檬氣泡飲', price: 90 }, { name: '柚子氣泡飲', price: 90 }, { name: '梅子氣泡飲', price: 90 }],
+            'food': [{ name: '豆干', price: 70 }, { name: '毛豆', price: 60 }, { name: '厚片(花生)', price: 60 }, { name: '厚片(奶酥)', price: 60 }, { name: '布丁', price: 70 }, { name: '餅乾', price: 50 }, { name: '巴斯克', price: 120 }, { name: '今日甜點', price: null, custom: true }]
+        };
+        const CAT_NAMES = { 'tea': '茶 TEA', 'coffee': '精品咖啡', 'non-caffeine': '無咖啡因', 'food': '茶食甜點' };
+        const STORAGE_KEY = 'tea_pos_v11_counter_blue';
+        const MAX_HISTORY_RECORDS = 100;
+
+        let state = {
+            cart: [],
+            history: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
+            currentCat: 'tea'
+        };
+
+        window.onload = () => {
+            window.cleanOldRecords();
+            window.initCategoryButtons();
+            window.renderPOS();
+            window.renderCart();
+            window.startClock();
+        };
+
+        window.cleanOldRecords = () => {
+            if (state.history.length > MAX_HISTORY_RECORDS) {
+                state.history = state.history.slice(0, MAX_HISTORY_RECORDS);
+                window.saveToLocal();
+            }
+        };
+
+        window.initCategoryButtons = () => {
+            const bar = document.getElementById('category-bar');
+            bar.innerHTML = '';
+            Object.keys(CAT_NAMES).forEach(id => {
+                const btn = document.createElement('button');
+                btn.className = `category-btn whitespace-nowrap px-8 py-3 rounded-xl border-2 border-transparent bg-white shadow-sm font-bold transition-all`;
+                btn.id = `cat-btn-${id}`;
+                btn.textContent = CAT_NAMES[id];
+                btn.onclick = () => { state.currentCat = id; window.renderPOS(); };
+                bar.appendChild(btn);
+            });
+        };
+
+        window.renderPOS = () => {
+            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('category-active'));
+            const activeBtn = document.getElementById(`cat-btn-${state.currentCat}`);
+            if(activeBtn) activeBtn.classList.add('category-active');
+
+            const grid = document.getElementById('menu-grid');
+            grid.innerHTML = '';
+            MENU[state.currentCat].forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = "bg-white p-6 rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-200 active:bg-blue-50 transition-all flex flex-col items-center justify-center gap-2";
+                btn.innerHTML = `<span class="font-black text-slate-800 text-lg">${item.name}</span><span class="text-blue-500 font-bold bg-blue-50 px-3 py-1 rounded-full text-sm">${item.price ? 'NT$ ' + item.price : '輸入金額'}</span>`;
+                btn.onclick = () => {
+                    if (item.custom) {
+                        window.toggleModal('price-modal', true);
+                        const input = document.getElementById('custom-price-input');
+                        input.value = '';
+                        setTimeout(()=>input.focus(), 100);
+                    } else {
+                        window.addToCart(item.name, item.price);
+                    }
+                };
+                grid.appendChild(btn);
+            });
+        };
+
+        window.addToCart = (name, price) => {
+            const existing = state.cart.find(i => i.name === name && i.price === price);
+            if (existing) { existing.qty++; } else { state.cart.push({ name, price, qty: 1 }); }
+            window.renderCart();
+        };
+
+        window.renderCart = () => {
+            const container = document.getElementById('cart-items-container');
+            container.innerHTML = state.cart.length === 0 ? `<div class="text-center py-20 text-slate-300 font-bold italic">尚無點餐內容</div>` : '';
+            state.cart.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-4 bg-white rounded-xl border shadow-sm";
+                div.innerHTML = `
+                    <div class="flex-1">
+                        <div class="font-bold text-slate-700">${item.name}</div>
+                        <div class="text-xs text-blue-500 font-medium">NT$ ${item.price}</div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center bg-gray-100 rounded-lg p-1">
+                            <button class="w-7 h-7 bg-white rounded shadow-sm font-bold" onclick="window.updateCartQty(${idx}, -1)">-</button>
+                            <span class="px-3 font-bold text-sm">${item.qty}</span>
+                            <button class="w-7 h-7 bg-white rounded shadow-sm font-bold" onclick="window.updateCartQty(${idx}, 1)">+</button>
+                        </div>
+                        <div class="w-16 text-right font-black text-slate-800">NT$ ${item.price * item.qty}</div>
+                    </div>`;
+                container.appendChild(div);
+            });
+            window.updateTotals();
+        };
+
+        window.updateCartQty = (idx, delta) => {
+            if (state.cart[idx].qty + delta > 0) { state.cart[idx].qty += delta; } else { state.cart.splice(idx, 1); }
+            window.renderCart();
+        };
+
+        window.updateTotals = () => {
+            const qty = state.cart.reduce((s, i) => s + i.qty, 0);
+            const price = state.cart.reduce((s, i) => s + (i.price * i.qty), 0);
+            document.getElementById('cart-total-qty').innerText = qty;
+            document.getElementById('cart-total-price').innerText = price.toLocaleString();
+        };
+
+        window.openCheckoutModal = () => {
+            if (state.cart.length === 0) return;
+            const content = document.getElementById('checkout-modal-content');
+            let total = 0;
+            let html = '<div class="space-y-3">';
+            state.cart.forEach(item => {
+                total += (item.price * item.qty);
+                html += `<div class="flex justify-between p-3 bg-gray-50 rounded-xl"><span>${item.name} x${item.qty}</span><b>NT$ ${item.price * item.qty}</b></div>`;
+            });
+            html += `</div><div class="mt-4 pt-4 border-t-2 border-dashed flex justify-between text-2xl font-black"><span>總計</span><span class="text-green-600">NT$ ${total.toLocaleString()}</span></div>`;
+            content.innerHTML = html;
+            window.toggleModal('checkout-modal', true);
+        };
+
+        window.finalizeTransaction = () => {
+            const today = new Date().toLocaleDateString('en-CA');
+            const total = state.cart.reduce((s, i) => s + (i.price * i.qty), 0);
+            const todayRecords = state.history.filter(r => r.date === today);
+            const nextNo = todayRecords.length + 1;
+            const formattedNo = String(nextNo).padStart(3, '0');
+
+            const record = {
+                id: "REC-" + Date.now(),
+                dailyNo: formattedNo,
+                date: today,
+                time: new Date().toLocaleTimeString('zh-TW', { hour12: false }),
+                items: [...state.cart],
+                total: total
+            };
+            
+            state.history.unshift(record);
+            window.cleanOldRecords();
+            window.saveAndClean();
+            window.toggleModal('checkout-modal', false);
+        };
+
+        window.saveAndClean = () => {
+            window.saveToLocal();
+            state.cart = [];
+            window.renderCart();
+        };
+
+        window.saveToLocal = () => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.history)); };
+
+        // 匯出 Excel (CSV 格式)
+        window.exportToExcel = () => {
+            if (state.history.length === 0) {
+                window.showConfirmModal("目前沒有紀錄", "尚無任何交易紀錄可供匯出。", () => {});
+                return;
+            }
+
+            // CSV 標頭與 BOM (解決中文亂碼)
+            let csvContent = "\uFEFF"; 
+            csvContent += "日期,時間,流水號,品項明細,總金額\n";
+
+            state.history.forEach(r => {
+                const itemNames = r.items.map(i => `${i.name}x${i.qty}`).join('; ');
+                // 處理可能包含逗號的內容
+                const line = [
+                    r.date,
+                    r.time,
+                    r.dailyNo,
+                    `"${itemNames}"`,
+                    r.total
+                ].join(",");
+                csvContent += line + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const timestamp = new Date().toISOString().slice(0, 10);
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `三宅千金_歷史紀錄_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        window.renderHistory = () => {
+            const container = document.getElementById('history-list-container');
+            container.innerHTML = '';
+            
+            const today = new Date().toLocaleDateString('en-CA');
+            let todayTotal = 0;
+
+            if (state.history.length === 0) {
+                container.innerHTML = `<div class="text-center py-40 bg-white rounded-3xl text-slate-300 font-bold border-2 border-dashed">無銷售紀錄</div>`;
+                document.getElementById('history-today-total').innerText = '0';
+                return;
+            }
+
+            const grouped = state.history.reduce((acc, r) => {
+                if (!acc[r.date]) acc[r.date] = { list: [], sum: 0 };
+                acc[r.date].list.push(r);
+                acc[r.date].sum += r.total;
+                return acc;
+            }, {});
+
+            if (grouped[today]) {
+                todayTotal = grouped[today].sum;
+            }
+
+            Object.keys(grouped).sort((a,b) => b.localeCompare(a)).forEach(date => {
+                const isToday = date === today;
+                const section = document.createElement('div');
+                section.className = "space-y-4";
+                section.innerHTML = `
+                    <div class="flex justify-between items-center text-sm font-bold text-slate-500">
+                        <span class="${isToday ? 'bg-green-600' : 'bg-slate-400'} text-white px-3 py-1 rounded-full">
+                            ${isToday ? '今天 (' + date + ')' : date}
+                        </span>
+                        <span>當日小計 NT$ ${grouped[date].sum.toLocaleString()}</span>
+                    </div>`;
+
+                const list = document.createElement('div');
+                list.className = "grid gap-3";
+
+                grouped[date].list.forEach(record => {
+                    const card = document.createElement('div');
+                    card.id = `card-${record.id}`;
+                    card.className = "record-card bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center";
+                    const delBtnId = `del-btn-${record.id}`;
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center gap-4 flex-1 overflow-hidden pr-4">
+                            <div class="bg-slate-500 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+                                ${record.dailyNo || '---'}
+                            </div>
+                            <div class="overflow-hidden">
+                                <div class="text-xs text-slate-400 font-mono mb-0.5">${record.time}</div>
+                                <div class="font-bold text-slate-700 truncate text-sm">${record.items.map(i => `${i.name}x${i.qty}`).join(', ')}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="font-black text-slate-900">NT$ ${record.total.toLocaleString()}</div>
+                            <button id="${delBtnId}" class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-slate-300 hover:bg-red-500 hover:text-white transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>`;
+                    list.appendChild(card);
+                    
+                    setTimeout(() => {
+                        const btn = document.getElementById(delBtnId);
+                        if(btn) btn.onmousedown = (e) => { e.preventDefault(); window.askDelete(record.id); };
+                    }, 0);
+                });
+
+                section.appendChild(list);
+                container.appendChild(section);
+            });
+            document.getElementById('history-today-total').innerText = todayTotal.toLocaleString();
+        };
+
+        window.askDelete = (id) => {
+            window.showConfirmModal("確定刪除此筆紀錄？", "刪除後今日營收將會自動扣除", () => {
+                const card = document.getElementById(`card-${id}`);
+                if (card) {
+                    card.classList.add('removing');
+                    setTimeout(() => {
+                        state.history = state.history.filter(r => r.id !== id);
+                        window.saveToLocal();
+                        window.renderHistory();
+                    }, 300);
+                }
+            });
+        };
+
+        window.askClearAll = () => {
+            window.showConfirmModal("確定清空全部紀錄？", "這將會移除所有的歷史銷售數據，且無法還原。", () => {
+                state.history = [];
+                window.saveToLocal();
+                window.renderHistory();
+            });
+        };
+
+        window.showConfirmModal = (title, desc, onConfirm) => {
+            document.getElementById('confirm-modal-title').innerText = title;
+            document.getElementById('confirm-modal-desc').innerText = desc;
+            const btn = document.getElementById('confirm-action-btn');
+            btn.onclick = () => { onConfirm(); window.closeConfirmModal(); };
+            document.getElementById('common-confirm-modal').classList.remove('hidden');
+        };
+
+        window.closeConfirmModal = () => { document.getElementById('common-confirm-modal').classList.add('hidden'); };
+
+        window.addCustomItem = () => {
+            const val = parseInt(document.getElementById('custom-price-input').value);
+            if(val > 0) { window.addToCart('今日甜點', val); window.toggleModal('price-modal', false); }
+        };
+
+        window.toggleModal = (id, show) => { document.getElementById(id).classList.toggle('hidden', !show); };
+
+        window.switchPage = (page) => {
+            document.getElementById('pos-page').classList.toggle('hidden', page !== 'pos');
+            document.getElementById('history-page').classList.toggle('hidden', page !== 'history');
+            document.getElementById('nav-pos-btn').classList.toggle('active-nav', page === 'pos');
+            document.getElementById('nav-history-btn').classList.toggle('active-nav', page === 'history');
+            if (page === 'history') window.renderHistory();
+        };
+
+        window.startClock = () => {
+            const el = document.getElementById('clock-display');
+            const tick = () => { 
+                const now = new Date();
+                const datePart = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                const weekPart = now.toLocaleDateString('zh-TW', { weekday: 'narrow' });
+                const timePart = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                el.innerHTML = `<div>${datePart} (${weekPart})</div><div class="text-blue-400 font-bold">${timePart}</div>`; 
+            };
+            setInterval(tick, 1000); tick();
+        };
+    </script>
+</body>
+</html>
