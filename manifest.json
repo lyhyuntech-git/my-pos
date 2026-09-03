@@ -1,8 +1,18 @@
 {
   "name": "三宅千金 POS",
-  "short_name": "三宅POS",
-  "start_url": "index.html",
+  "short_name": "三宅千金",
+  "description": "三宅千金茶飲店收銀與營運分析系統（離線可用，資料僅存於本機）",
+  "lang": "zh-TW",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#0f172a",
-  "theme_color": "#0f172a"
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

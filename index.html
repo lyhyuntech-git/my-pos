@@ -1,478 +1,1742 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TEA & COFFEE POS - Daily Counter</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* 原有基礎樣式 */
-        body { 
-            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
-            height: 100dvh; /* 修正 1：動態計算高度，避開 iPad 工具列 */
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .active-nav { background-color: #334155 !important; color: white !important; }
-        .category-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; color: #1d4ed8 !important; }
-        * { -webkit-tap-highlight-color: transparent; }
-        
-        /* 滾動條樣式 */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
-        /* 紀錄卡片動畫 */
-        .record-card { transition: all 0.2s ease; }
-        .record-card.removing { opacity: 0; transform: translateX(50px); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="三宅千金">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>三宅千金 POS</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+:root{
+  --bg:#eef2f7;--surface:#fff;--ink:#0f172a;--ink2:#334155;--muted:#64748b;--faint:#94a3b8;
+  --line:#e2e8f0;--line2:#cbd5e1;
+  --brand:#2563eb;--brand-d:#1d4ed8;--brand-s:#eff6ff;
+  --dark:#0f172a;--dark2:#1e293b;
+  --good:#16a34a;--good-s:#f0fdf4;--warn:#b45309;--warn-s:#fffbeb;--bad:#dc2626;--bad-s:#fef2f2;
+  --gold:#facc15;
+  --r:14px;--rl:20px;
+  --sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px);
+  --sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);
+  --sh:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.05);
+  --sh2:0 4px 14px rgba(15,23,42,.09);
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink2);
+  height:100vh;height:100dvh;
+  display:flex;flex-direction:column;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;
+  -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;
+  overscroll-behavior:none;
+}
+input{-webkit-user-select:text;user-select:text;font:inherit}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:left}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:99px}
+.scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.hide{display:none !important}
 
-        /* 修正 2：確保右側購物車底部不會被蓋住 */
-        #pos-page > div:last-child {
-            padding-bottom: env(safe-area-inset-bottom, 20px);
-        }
+/* ---------- header ---------- */
+.hdr{
+  flex:0 0 auto;background:var(--dark);color:#fff;display:flex;align-items:center;gap:16px;
+  padding:10px 16px;padding-top:calc(10px + var(--st));
+  padding-left:calc(16px + var(--sl));padding-right:calc(16px + var(--sr));
+  box-shadow:0 2px 10px rgba(15,23,42,.25);z-index:20;
+}
+.brand{font-size:17px;font-weight:800;letter-spacing:-.02em;color:#fff;white-space:nowrap}
+.brand span{color:#60a5fa}
+.nav{display:flex;background:rgba(255,255,255,.08);border-radius:12px;padding:4px;gap:2px}
+.nav button{
+  padding:9px 17px;border-radius:9px;font-size:14px;font-weight:700;color:#cbd5e1;
+  white-space:nowrap;transition:background .15s,color .15s;position:relative;
+}
+.nav button.on{background:#fff;color:var(--dark)}
+.nav button .dot{position:absolute;top:3px;right:5px;width:8px;height:8px;border-radius:99px;background:var(--gold);box-shadow:0 0 0 2px var(--dark)}
+.nav button.on .dot{box-shadow:0 0 0 2px #fff}
+.spacer{flex:1}
+.clock{text-align:right;font-size:11px;line-height:1.5;background:rgba(255,255,255,.07);padding:6px 12px;border-radius:10px;white-space:nowrap}
+.clock .t{color:#60a5fa;font-weight:800;font-size:15px;letter-spacing:.02em}
+.clock .d{color:#94a3b8}
 
-        /* 修正 3：微調結帳按鈕大小，增加可見度 */
-        button[onclick*="openCheckoutModal"] {
-            padding-top: 0.8rem !important;
-            padding-bottom: 0.8rem !important;
-            margin-bottom: 0.5rem;
-        }
-    </style>
+/* ---------- banner ---------- */
+.banner{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:9px 16px;font-size:13px;font-weight:700;
+  background:var(--warn-s);color:var(--warn);border-bottom:1px solid #fde68a;
+}
+.banner.hot{background:var(--bad-s);color:var(--bad);border-bottom-color:#fecaca}
+.banner .go{margin-left:auto;background:currentColor;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:800;flex:0 0 auto}
+.banner .go span{color:#fff}
+.banner .x{padding:6px 8px;opacity:.55;font-weight:800}
+
+/* ---------- pages ---------- */
+main{flex:1;display:flex;overflow:hidden;min-height:0}
+.page{flex:1;display:flex;overflow:hidden;min-height:0}
+.page.col{flex-direction:column}
+
+/* ---------- POS ---------- */
+.menu-col{flex:1;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--line);min-width:0}
+.catbar{
+  flex:0 0 auto;display:flex;gap:8px;padding:12px;background:#f8fafc;border-bottom:1px solid var(--line);
+  overflow-x:auto;padding-left:calc(12px + var(--sl));
+}
+.cat{
+  flex:0 0 auto;padding:11px 22px;border-radius:12px;background:#fff;border:2px solid transparent;
+  font-weight:700;font-size:15px;color:var(--muted);box-shadow:var(--sh);white-space:nowrap;transition:all .15s;
+}
+.cat.on{border-color:var(--brand);background:var(--brand-s);color:var(--brand-d)}
+.grid{
+  flex:1;display:grid;gap:12px;padding:16px;padding-left:calc(16px + var(--sl));
+  grid-template-columns:repeat(auto-fill,minmax(148px,1fr));align-content:start;
+}
+.item{
+  background:#fff;border:2px solid var(--line);border-radius:var(--rl);padding:14px 10px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  min-height:104px;box-shadow:var(--sh);transition:transform .08s,border-color .15s,background .15s;
+}
+.item:active{transform:scale(.96);background:var(--brand-s);border-color:var(--brand)}
+.item .nm{font-weight:800;font-size:15px;color:var(--ink);text-align:center;line-height:1.35}
+.item .pr{font-size:13px;font-weight:800;color:var(--brand-d);background:var(--brand-s);padding:3px 12px;border-radius:99px}
+.item.to{border-color:#bae6fd}
+.item.to .pr{background:#f0f9ff;color:#0369a1}
+.item.internal{border-color:#e9d5ff}
+.item.internal .pr{background:#faf5ff;color:#7e22ce}
+
+/* ---------- cart ---------- */
+.cart{flex:0 0 372px;display:flex;flex-direction:column;background:#f8fafc;min-width:0}
+@media(max-width:900px){.cart{flex-basis:314px}}
+.cart-hd{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:13px 16px;
+  background:#fff;border-bottom:1px solid var(--line);font-weight:800;color:var(--ink);font-size:15px;
+}
+.cart-hd .clr{margin-left:auto;font-size:12px;font-weight:700;color:var(--faint);padding:7px 11px;border-radius:8px}
+.cart-hd .clr:active{background:var(--bad-s);color:var(--bad)}
+.cart-list{flex:1;padding:12px;display:flex;flex-direction:column;gap:8px}
+.crow{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh)}
+.crow .info{flex:1;min-width:0}
+.crow .nm{font-weight:700;font-size:14px;color:var(--ink);line-height:1.3}
+.crow .pr{font-size:11px;color:var(--muted);margin-top:2px}
+.crow .pr b{color:var(--brand-d)}
+.qty{display:flex;align-items:center;background:#f1f5f9;border-radius:10px;padding:3px}
+.qtb{width:34px;height:34px;border-radius:8px;background:#fff;box-shadow:var(--sh);font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;color:var(--ink2)}
+.qtb:active{background:var(--brand);color:#fff}
+.qty .n{min-width:30px;text-align:center;font-weight:800;font-size:15px}
+.crow .sub{width:62px;text-align:right;font-weight:800;font-size:14px;color:var(--ink)}
+.cart-ft{flex:0 0 auto;background:var(--dark);color:#fff;padding:14px 16px;padding-bottom:calc(14px + var(--sb));box-shadow:0 -4px 20px rgba(15,23,42,.2)}
+.paylbl{font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:7px;letter-spacing:.06em}
+.pays{display:flex;gap:6px;margin-bottom:13px}
+.pay{flex:1 1 0;min-width:0;padding:9px 4px;border-radius:10px;background:rgba(255,255,255,.09);color:#cbd5e1;font-size:12px;font-weight:700;text-align:center;transition:all .15s;border:2px solid transparent;white-space:nowrap}
+.pay.on{background:#fff;color:var(--dark);border-color:#fff}
+.sumrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.sumrow.sm{font-size:12px;color:#94a3b8}
+.sumrow.big{margin-bottom:13px}
+.sumrow.big .lbl{font-size:15px;color:#cbd5e1}
+.sumrow.big .val{font-size:29px;font-weight:900;color:var(--gold);letter-spacing:-.02em}
+.co{width:100%;padding:16px;border-radius:var(--rl);background:var(--brand);color:#fff;font-size:18px;font-weight:800;text-align:center;box-shadow:0 4px 14px rgba(37,99,235,.4);transition:transform .08s,background .15s}
+.co:active{transform:scale(.97);background:var(--brand-d)}
+.co:disabled{background:#475569;color:#94a3b8;box-shadow:none}
+.empty{text-align:center;padding:52px 20px;color:var(--faint);font-weight:700;font-size:14px;line-height:1.7}
+
+/* ---------- shared page chrome ---------- */
+.phd{
+  flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:16px 20px;background:#fff;
+  border-bottom:1px solid var(--line);padding-left:calc(20px + var(--sl));padding-right:calc(20px + var(--sr));
+}
+.phd h2{margin:0;font-size:21px;font-weight:900;color:var(--ink);letter-spacing:-.02em}
+.phd .sub{font-size:11px;color:var(--faint);font-weight:600;margin-top:3px}
+.pbody{flex:1;padding:18px 20px;padding-left:calc(20px + var(--sl));padding-right:calc(20px + var(--sr));padding-bottom:calc(28px + var(--sb))}
+.btn{padding:10px 16px;border-radius:11px;font-size:14px;font-weight:700;background:#f1f5f9;color:var(--ink2);display:inline-flex;align-items:center;gap:7px;transition:all .12s}
+.btn:active{transform:scale(.97)}
+.btn.p{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.btn.g{background:var(--good);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.28)}
+.btn.d{background:#fff;color:var(--bad);border:1.5px solid #fecaca}
+.btn.lg{padding:14px 20px;font-size:15px;width:100%;justify-content:center}
+.tot{text-align:right}
+.tot .l{font-size:10px;color:var(--faint);font-weight:800;letter-spacing:.1em}
+.tot .v{font-size:23px;font-weight:900;color:var(--good);letter-spacing:-.02em;line-height:1.2}
+
+/* ---------- history ---------- */
+.hgroup{margin-bottom:26px}
+.ghd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--muted)}
+.gdate{background:#94a3b8;color:#fff;padding:5px 13px;border-radius:99px;font-size:12px;font-weight:800}
+.gdate.today{background:var(--good)}
+.hcard{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:11px 13px;display:flex;align-items:center;gap:12px;margin-bottom:7px;box-shadow:var(--sh)}
+.hno{background:#475569;color:#fff;width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex:0 0 auto}
+.hinfo{flex:1;min-width:0}
+.hmeta{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--faint);margin-bottom:3px}
+.hitems{font-weight:700;font-size:13px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.chip{padding:2px 8px;border-radius:99px;font-size:10px;font-weight:800;background:#f1f5f9;color:var(--muted)}
+.chip.cash{background:#f0fdf4;color:#15803d}.chip.linepay{background:#f0fdf4;color:#166534}
+.chip.card{background:#eff6ff;color:#1d4ed8}.chip.other{background:#faf5ff;color:#7e22ce}
+.chip.unknown{background:#f8fafc;color:#94a3b8}
+.htot{font-weight:900;font-size:15px;color:var(--ink);white-space:nowrap}
+.del{width:40px;height:40px;border-radius:11px;background:#f8fafc;color:var(--line2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:17px}
+.del:active{background:var(--bad);color:#fff}
+
+/* ---------- report ---------- */
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.phd{flex-wrap:wrap}
+.drange{display:flex;align-items:center;gap:8px;width:100%;padding-top:12px;margin-top:12px;border-top:1px solid var(--line)}
+.drange label{font-size:12px;font-weight:800;color:var(--muted);flex:0 0 auto}
+.drange input{padding:9px 12px;border:2px solid var(--line);border-radius:10px;font-size:15px;
+  font-weight:700;color:var(--ink);background:#fff;outline:none;-webkit-appearance:none;min-height:42px}
+.drange input:focus{border-color:var(--brand)}
+.drange .btn{margin-left:4px}
+.chipbtn{padding:8px 15px;border-radius:10px;background:#f1f5f9;font-size:13px;font-weight:700;color:var(--muted);transition:all .12s}
+.chipbtn.on{background:var(--dark);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:11px;margin-bottom:18px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;box-shadow:var(--sh)}
+.kpi .l{font-size:11px;font-weight:800;color:var(--faint);letter-spacing:.04em;margin-bottom:5px}
+.kpi .v{font-size:24px;font-weight:900;color:var(--ink);letter-spacing:-.03em;line-height:1.15}
+.kpi .v small{font-size:13px;font-weight:800;color:var(--faint);margin-right:2px}
+.kpi .s{font-size:11px;color:var(--muted);margin-top:4px;font-weight:600}
+.kpi.hi .v{color:var(--good)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--rl);padding:16px 18px;box-shadow:var(--sh)}
+.card.wide{grid-column:1/-1}
+.card h3{margin:0 0 3px;font-size:15px;font-weight:800;color:var(--ink)}
+.card .cs{font-size:11px;color:var(--faint);font-weight:600;margin-bottom:12px}
+.chart{width:100%;height:auto;display:block}
+.hb{display:flex;flex-direction:column;gap:9px}
+.hbr .top{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:4px}
+.hbr .nm{font-weight:700;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px}
+.hbr .vv{font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.hbr .vv em{font-style:normal;color:var(--faint);font-weight:600;font-size:11px;margin-left:5px}
+.track{height:9px;background:#f1f5f9;border-radius:99px;overflow:hidden}
+.fill{height:100%;border-radius:99px;transition:width .3s}
+.dn{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.dn svg{flex:0 0 168px;width:168px}
+.lg{flex:1;min-width:150px;display:flex;flex-direction:column;gap:7px}
+.lgr{display:flex;align-items:center;gap:8px;font-size:13px}
+.lgr .sw{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.lgr .n{flex:1;font-weight:700;color:var(--ink2)}
+.lgr .p{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.note{background:var(--brand-s);border:1px solid #bfdbfe;border-radius:var(--r);padding:12px 14px;font-size:12px;line-height:1.7;color:#1e40af;margin-top:14px}
+
+/* ---------- data page ---------- */
+.dsec{background:#fff;border:1px solid var(--line);border-radius:var(--rl);padding:18px;margin-bottom:14px;box-shadow:var(--sh)}
+.dsec h3{margin:0 0 4px;font-size:16px;font-weight:800;color:var(--ink)}
+.dsec .ds{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:6px}
+.stat{background:#f8fafc;border-radius:var(--r);padding:12px 13px}
+.stat .l{font-size:11px;color:var(--faint);font-weight:800;margin-bottom:4px}
+.stat .v{font-size:16px;font-weight:900;color:var(--ink)}
+.stat.warn{background:var(--warn-s)}.stat.warn .v{color:var(--warn)}
+.stat.bad{background:var(--bad-s)}.stat.bad .v{color:var(--bad)}
+.stat.ok{background:var(--good-s)}.stat.ok .v{color:var(--good)}
+.brow{display:flex;gap:10px;flex-wrap:wrap}
+.brow .btn{flex:1 1 190px;justify-content:center}
+.danger{border-color:#fecaca;background:#fffbfb}
+
+/* ---------- modals ---------- */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.sheet{background:#fff;border-radius:24px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column;max-height:88vh}
+.sheet.sm{max-width:340px}
+.sheet-hd{padding:18px 22px;background:var(--brand);color:#fff;font-size:19px;font-weight:800;text-align:center;flex:0 0 auto}
+.sheet-bd{padding:20px 22px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-ft{padding:16px 20px;padding-bottom:calc(16px + var(--sb));background:#f8fafc;border-top:1px solid var(--line);display:flex;gap:11px;flex:0 0 auto}
+.sheet-ft .btn{flex:1;justify-content:center;padding:15px;font-size:16px;border-radius:15px}
+.corow{display:flex;justify-content:space-between;padding:11px 13px;background:#f8fafc;border-radius:11px;margin-bottom:7px;font-size:14px;font-weight:600}
+.corow b{font-weight:800;color:var(--ink)}
+.cofin{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:14px;border-top:2px dashed var(--line2);font-size:19px;font-weight:900;color:var(--ink)}
+.cofin .v{font-size:29px;color:var(--good);letter-spacing:-.02em}
+.copay{margin-top:14px;padding:12px 14px;background:var(--brand-s);border-radius:11px;font-size:13px;font-weight:700;color:#1e40af;display:flex;justify-content:space-between}
+.icon{width:70px;height:70px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:33px;margin:0 auto 18px}
+.icon.warn{background:var(--bad-s)}
+.icon.info{background:var(--brand-s)}
+.ctr{text-align:center}
+.ctr h3{margin:0 0 8px;font-size:19px;font-weight:800;color:var(--ink)}
+.ctr p{margin:0;color:var(--muted);font-size:14px;line-height:1.7;white-space:pre-line}
+.fld{margin-bottom:16px}
+.fld label{display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:7px;letter-spacing:.03em}
+.fld input{width:100%;padding:13px 15px;border:2px solid var(--line);border-radius:12px;font-size:16px;font-weight:700;color:var(--ink);outline:none;background:#fff;-webkit-appearance:none}
+.fld input:focus{border-color:var(--brand);background:var(--brand-s)}
+.fld input.big{font-size:32px;font-weight:900;text-align:center;padding:16px}
+.toast{position:fixed;left:50%;bottom:calc(30px + var(--sb));transform:translateX(-50%) translateY(80px);background:var(--dark);color:#fff;padding:14px 26px;border-radius:99px;font-size:15px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.35);z-index:200;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.bad{background:var(--bad)}
+.toast.good{background:var(--good)}
+
+/* ---------- 備份頁（給店員用，畫面上只有一件事） ---------- */
+.bigwrap{max-width:620px;margin:0 auto}
+.bigstat{background:#fff;border:1px solid var(--line);border-radius:var(--rl);padding:20px;text-align:center;margin-bottom:14px;box-shadow:var(--sh)}
+.bigstat .l{font-size:12px;font-weight:800;color:var(--faint);letter-spacing:.06em;margin-bottom:7px}
+.bigstat .v{font-size:24px;font-weight:900;color:var(--ink);letter-spacing:-.02em;line-height:1.3}
+.bigstat .s{font-size:13px;color:var(--muted);font-weight:600;margin-top:6px}
+.bigstat.warn{background:var(--warn-s);border-color:#fde68a}.bigstat.warn .v{color:var(--warn)}
+.bigstat.bad{background:var(--bad-s);border-color:#fecaca}.bigstat.bad .v{color:var(--bad)}
+.bigstat.ok{background:var(--good-s);border-color:#bbf7d0}.bigstat.ok .v{color:var(--good)}
+.bigbtn{width:100%;padding:30px 20px;border-radius:24px;background:var(--brand);color:#fff;font-size:25px;font-weight:900;text-align:center;box-shadow:0 8px 24px rgba(37,99,235,.35);margin-bottom:18px;transition:transform .1s}
+.bigbtn:active{transform:scale(.97);background:var(--brand-d)}
+.bigbtn small{display:block;font-size:13px;font-weight:700;opacity:.85;margin-top:6px}
+.steps{background:#fff;border:1px solid var(--line);border-radius:var(--rl);padding:18px 22px;box-shadow:var(--sh)}
+.steps h4{margin:0 0 10px;font-size:14px;font-weight:800;color:var(--ink)}
+.steps ol{margin:0;padding-left:20px;font-size:14px;line-height:2.1;color:var(--ink2)}
+.steps b{color:var(--brand-d)}
+.admlink{display:flex;align-items:center;gap:13px;width:100%;margin-top:24px;padding:17px 20px;
+  border-radius:18px;background:#fff;border:2px solid var(--line2);color:var(--ink);
+  box-shadow:var(--sh);transition:all .12s}
+.admlink:active{background:var(--dark);border-color:var(--dark);color:#fff;transform:scale(.98)}
+.admlink .ic{font-size:23px;flex:0 0 auto;line-height:1}
+.admlink .tx{font-size:16px;font-weight:800;line-height:1.35;flex:1}
+.admlink .tx small{display:block;font-size:12px;font-weight:600;color:var(--faint);margin-top:2px}
+.admlink:active .tx small{color:#94a3b8}
+.admlink .ar{font-size:17px;color:var(--faint);flex:0 0 auto}
+.admlink:active .ar{color:#fff}
+
+/* ---------- 管理者頁 ---------- */
+.backb{width:42px;height:42px;border-radius:12px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto;color:var(--ink2)}
+.backb:active{background:var(--line2)}
+.mcat{margin-bottom:18px}
+.mcat h4{margin:0 0 9px;font-size:13px;font-weight:800;color:var(--muted);letter-spacing:.04em}
+.mrow{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:6px}
+.mrow .mn{flex:1;min-width:0;font-weight:700;font-size:14px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .mp{font-weight:800;font-size:14px;color:var(--brand-d);white-space:nowrap;margin-right:2px}
+.mtag{padding:2px 7px;border-radius:99px;font-size:10px;font-weight:800;white-space:nowrap;flex:0 0 auto}
+.mtag.to{background:#f0f9ff;color:#0369a1}
+.mtag.internal{background:#faf5ff;color:#7e22ce}
+.mtag.custom{background:#fffbeb;color:#b45309}
+.mbtn{width:34px;height:34px;border-radius:9px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto;color:var(--muted)}
+.mbtn:active{background:var(--brand);color:#fff}
+.mbtn.dg:active{background:var(--bad);color:#fff}
+.mbtn:disabled{opacity:.25}
+.addbtn{width:100%;padding:11px;border-radius:12px;border:2px dashed var(--line2);color:var(--muted);font-weight:700;font-size:13px;text-align:center;background:none}
+.addbtn:active{border-color:var(--brand);color:var(--brand);background:var(--brand-s)}
+.chk{display:flex;align-items:center;gap:11px;padding:12px 14px;border:2px solid var(--line);border-radius:12px;margin-bottom:9px;font-size:14px;font-weight:700;color:var(--ink2);width:100%}
+.chk.on{border-color:var(--brand);background:var(--brand-s);color:var(--brand-d)}
+.chk .bx{width:22px;height:22px;border-radius:6px;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent;flex:0 0 auto;background:#fff}
+.chk.on .bx{background:var(--brand);border-color:var(--brand);color:#fff}
+.chk .sub{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:2px}
+.fld select{width:100%;padding:13px 15px;border:2px solid var(--line);border-radius:12px;font-size:16px;font-weight:700;color:var(--ink);background:#fff;-webkit-appearance:none;outline:none}
+.warnbox{background:var(--warn-s);border:1px solid #fde68a;border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.7;color:var(--warn);margin-bottom:14px}
+.infobox{background:var(--brand-s);border:1px solid #bfdbfe;border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.7;color:#1e40af;margin-bottom:14px}
+</style>
 </head>
-<body class="bg-gray-100 h-screen flex flex-col overflow-hidden text-slate-800">
+<body>
 
-    <header class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-lg shrink-0">
-        <div class="flex items-center gap-6">
-            <h1 class="text-xl font-black tracking-tight uppercase text-blue-400">三宅千金 POS</h1>
-            <div class="flex bg-slate-800 rounded-lg p-1">
-                <button id="nav-pos-btn" class="px-6 py-2 rounded-md text-sm font-bold active-nav" onclick="window.switchPage('pos')">點餐系統</button>
-                <button id="nav-history-btn" class="px-6 py-2 rounded-md text-sm font-bold" onclick="window.switchPage('history')">歷史帳單</button>
-            </div>
-        </div>
-        <div id="clock-display" class="text-sm font-mono opacity-90 bg-slate-800 px-3 py-1 rounded border border-slate-700 leading-relaxed text-right"></div>
-    </header>
+<header class="hdr">
+  <div class="brand">三宅千金 <span>POS</span></div>
+  <nav class="nav">
+    <button id="nv-pos"    onclick="go('pos')">點餐</button>
+    <button id="nv-history"onclick="go('history')">帳單</button>
+    <button id="nv-report" onclick="go('report')">分析</button>
+    <button id="nv-data"   onclick="go('data')">備份<span id="nv-dot" class="dot hide"></span></button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="clock" id="clock"></div>
+</header>
 
-    <div id="main-container" class="flex-1 flex overflow-hidden">
-        
-        <div id="pos-page" class="flex flex-1 overflow-hidden">
-            <div class="w-2/3 flex flex-col bg-white border-r">
-                <div id="category-bar" class="flex p-3 gap-2 overflow-x-auto bg-gray-50 border-b"></div>
-                <div id="menu-grid" class="flex-1 p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 content-start"></div>
-            </div>
+<div id="banner" class="banner hide"></div>
 
-            <div class="w-1/3 flex flex-col bg-gray-50 shadow-inner">
-                <div class="p-4 border-b flex justify-between items-center bg-white">
-                    <h2 class="font-bold text-lg flex items-center gap-2">🛒 當前購物車</h2>
-                </div>
-                <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm"></div>
-                <div class="p-6 bg-slate-900 text-white shadow-2xl">
-                    <div class="flex justify-between mb-2 opacity-60 text-xs">
-                        <span>品項數量</span>
-                        <span id="cart-total-qty">0</span>
-                    </div>
-                    <div class="flex justify-between items-end mb-6">
-                        <span class="text-lg">總計金額</span>
-                        <span class="text-3xl font-black text-yellow-400">NT$ <span id="cart-total-price">0</span></span>
-                    </div>
-                    <button class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-all" onclick="window.openCheckoutModal()">確認結帳</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="history-page" class="hidden flex-1 flex flex-col overflow-hidden bg-gray-100">
-            <div class="p-6 flex justify-between items-end bg-white border-b shadow-sm">
-                <div>
-                    <h2 class="text-2xl font-black italic mb-1 uppercase tracking-tight">銷售歷史紀錄</h2>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">* 僅保留最近 100 筆交易紀錄</p>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-widest">今日營收額</p>
-                        <p class="text-2xl font-black text-green-600">NT$ <span id="history-today-total">0</span></p>
-                    </div>
-                    <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-blue-500 flex items-center gap-2 transition-all" onclick="window.exportToExcel()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        匯出備份
-                    </button>
-                    <button class="bg-slate-100 text-slate-400 p-2 rounded-lg hover:bg-red-50 hover:text-red-500 transition-all" onclick="window.askClearAll()">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
-                </div>
-            </div>
-            <div id="history-list-container" class="flex-1 overflow-y-auto p-6 space-y-8"></div>
-        </div>
+<main>
+  <!-- ============ POS ============ -->
+  <section id="pg-pos" class="page">
+    <div class="menu-col">
+      <div class="catbar" id="catbar"></div>
+      <div class="grid scroll" id="grid"></div>
     </div>
-
-    <div id="common-confirm-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl w-full max-w-xs p-8 shadow-2xl text-center">
-            <div id="confirm-modal-icon" class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">⚠️</div>
-            <h3 id="confirm-modal-title" class="text-xl font-bold mb-2">確定操作？</h3>
-            <p id="confirm-modal-desc" class="text-gray-500 mb-8 text-sm">此操作無法撤銷</p>
-            <div class="flex gap-4">
-                <button class="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-500" onclick="window.closeConfirmModal()">取消</button>
-                <button id="confirm-action-btn" class="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl">確認</button>
-            </div>
+    <div class="cart">
+      <div class="cart-hd">
+        <span>🛒 購物車</span>
+        <button class="clr" onclick="clearCart()">清空</button>
+      </div>
+      <div class="cart-list scroll" id="cartlist"></div>
+      <div class="cart-ft">
+        <div id="payblock">
+          <div class="paylbl">付款方式</div>
+          <div class="pays" id="pays"></div>
         </div>
+        <div class="sumrow sm"><span>品項數量</span><span id="cq">0</span></div>
+        <div class="sumrow big"><span class="lbl">總計金額</span><span class="val">NT$ <span id="cp">0</span></span></div>
+        <button class="co" id="cobtn" onclick="openCheckout()">確認結帳</button>
+      </div>
     </div>
+  </section>
 
-    <div id="price-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-xs shadow-xl text-center">
-            <h3 class="text-xl font-bold mb-6">今日甜點金額</h3>
-            <input type="number" id="custom-price-input" class="w-full text-4xl font-black border-b-4 border-blue-500 py-4 mb-8 text-center outline-none" inputmode="numeric" placeholder="0">
-            <div class="flex gap-4">
-                <button onclick="window.toggleModal('price-modal', false)" class="flex-1 py-3 bg-gray-100 font-bold rounded-xl">取消</button>
-                <button onclick="window.addCustomItem()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl">加入</button>
-            </div>
-        </div>
+  <!-- ============ HISTORY ============ -->
+  <section id="pg-history" class="page col hide">
+    <div class="phd">
+      <div>
+        <h2>銷售帳單</h2>
+        <div class="sub" id="hsub">—</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="tot"><div class="l">今日營收</div><div class="v">NT$ <span id="htoday">0</span></div></div>
     </div>
+    <div class="pbody scroll" id="hlist"></div>
+  </section>
 
-    <div id="checkout-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl w-full max-md overflow-hidden shadow-xl">
-            <div class="bg-blue-600 p-6 text-white text-center font-bold text-2xl">結帳核對</div>
-            <div id="checkout-modal-content" class="p-6 max-h-[60vh] overflow-y-auto"></div>
-            <div class="p-6 bg-gray-50 flex gap-4 border-t">
-                <button onclick="window.toggleModal('checkout-modal', false)" class="flex-1 py-4 border rounded-2xl font-bold bg-white shadow-sm">修改</button>
-                <button onclick="window.finalizeTransaction()" class="flex-1 py-4 bg-green-600 text-white font-bold rounded-2xl shadow-lg">完成交易</button>
-            </div>
-        </div>
+  <!-- ============ REPORT ============ -->
+  <section id="pg-report" class="page col hide">
+    <div class="phd">
+      <div>
+        <h2>營運分析</h2>
+        <div class="sub" id="rsub">—</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="chips" id="periods"></div>
+      <div id="customrange" class="drange hide">
+        <label>起</label><input type="date" id="dfrom">
+        <label>迄</label><input type="date" id="dto">
+        <button class="btn p" onclick="applyCustom()">查詢</button>
+      </div>
     </div>
+    <div class="pbody scroll" id="rbody"></div>
+  </section>
 
-    <script>
-        // 註冊 Service Worker 讓 App 支援離線開啟
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('離線功能已啟動', reg))
-                    .catch(err => console.log('註冊失敗', err));
-            });
-        }
+  <!-- ============ 備份（店員用）============ -->
+  <section id="pg-data" class="page col hide">
+    <div class="phd">
+      <div>
+        <h2>備份</h2>
+        <div class="sub">資料只存在這台 iPad 上，備份是唯一的保險</div>
+      </div>
+    </div>
+    <div class="pbody scroll" id="dbody"></div>
+  </section>
 
-        const MENU = {
-            'tea': [ { name: '福壽山手路茶', price: 140 }, { name: '東方美人茶', price: 140 }, { name: '古樹紅茶', price: 160 }, { name: '普洱茶', price: 180 }, { name: '三宅焙茶(冰)', price: 90 }, { name: '三宅青茶(冰)', price: 90 }, { name: '雙花紅茶(冰)', price: 90 }],
-            'coffee': [{ name: '熱美式', price: 90 }, { name: '冰美式', price: 90 },{ name: '熱美式(外)', price: 50 },{ name: '冰美式(外)', price: 50 }, { name: '熱拿鐵', price: 120 }, { name: '冰拿鐵', price: 120 }, { name: '熱拿鐵(外)', price: 70 }, { name: '冰拿鐵(外)', price: 70 }, { name: '手沖咖啡（淺焙）', price: 130 }, { name: '手沖咖啡（中深焙）', price: 130 }, { name: '西西里咖啡', price: 120 }],
-            'non-caffeine': [{ name: '蜂蜜檸檬氣泡飲', price: 110 }, { name: '柚子氣泡飲', price: 90 }, { name: '梅醋氣泡飲', price: 90 }, { name: '橘子氣泡飲', price: 120 }, { name: '熱鮮奶', price: 80 }, { name: '冰鮮奶', price: 80 }, { name: '冬瓜茶', price: 80 }],
-            'food': [{ name: '豆干', price: 70 }, { name: '毛豆', price: 60 }, { name: '厚片(花生)', price: 60 }, { name: '厚片(奶酥)', price: 60 }, { name: '厚片(玉米起司)', price: 90 }, { name: '布丁', price: 70 }, { name: '布丁(外)', price: 50 }, { name: '巴斯克', price: 120 }, { name: '冰淇淋布朗尼', price: 120 }, { name: '自己人', price: 50 }, { name: '甜點或伴手禮', price: null, custom: true }]
-        };
-        const CAT_NAMES = { 'tea': '茶 TEA', 'coffee': '精品咖啡', 'non-caffeine': '無咖啡因', 'food': '茶食甜點' };
-        const STORAGE_KEY = 'tea_pos_v11_counter_blue';
-        const MAX_HISTORY_RECORDS = 100;
+  <!-- ============ 管理者設定（不在導覽列上）============ -->
+  <section id="pg-admin" class="page col hide">
+    <div class="phd">
+      <button class="backb" onclick="go('data')">←</button>
+      <div>
+        <h2>管理者設定</h2>
+        <div class="sub">菜單、報表匯出、資料還原</div>
+      </div>
+    </div>
+    <div class="pbody scroll" id="abody"></div>
+  </section>
+</main>
 
-        let state = {
-            cart: [],
-            history: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'),
-            currentCat: 'tea'
-        };
+<!-- ============ modals ============ -->
+<div id="m-confirm" class="mask hide">
+  <div class="sheet sm">
+    <div class="sheet-bd ctr">
+      <div class="icon warn" id="cf-icon">⚠️</div>
+      <h3 id="cf-title">確定操作？</h3>
+      <p id="cf-desc"></p>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn" onclick="closeModal('m-confirm')" id="cf-cancel">取消</button>
+      <button class="btn p" id="cf-ok">確認</button>
+    </div>
+  </div>
+</div>
 
-        window.onload = () => {
-            window.cleanOldRecords();
-            window.initCategoryButtons();
-            window.renderPOS();
-            window.renderCart();
-            window.startClock();
-        };
+<div id="m-custom" class="mask hide">
+  <div class="sheet sm">
+    <div class="sheet-hd" id="cu-title">甜點</div>
+    <div class="sheet-bd">
+      <div class="fld">
+        <label>品名（可留空）</label>
+        <input type="text" id="cu-name" placeholder="例：檸檬塔" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label>金額</label>
+        <input type="number" id="cu-price" class="big" inputmode="numeric" placeholder="0">
+      </div>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn" onclick="closeModal('m-custom')">取消</button>
+      <button class="btn p" onclick="addCustom()">加入</button>
+    </div>
+  </div>
+</div>
 
-        window.cleanOldRecords = () => {
-            if (state.history.length > MAX_HISTORY_RECORDS) {
-                state.history = state.history.slice(0, MAX_HISTORY_RECORDS);
-                window.saveToLocal();
-            }
-        };
+<div id="m-checkout" class="mask hide">
+  <div class="sheet">
+    <div class="sheet-hd">結帳核對</div>
+    <div class="sheet-bd" id="co-body"></div>
+    <div class="sheet-ft">
+      <button class="btn" onclick="closeModal('m-checkout')">修改</button>
+      <button class="btn g" id="co-ok" onclick="finalize()">完成交易</button>
+    </div>
+  </div>
+</div>
 
-        window.initCategoryButtons = () => {
-            const bar = document.getElementById('category-bar');
-            bar.innerHTML = '';
-            Object.keys(CAT_NAMES).forEach(id => {
-                const btn = document.createElement('button');
-                btn.className = `category-btn whitespace-nowrap px-8 py-3 rounded-xl border-2 border-transparent bg-white shadow-sm font-bold transition-all`;
-                btn.id = `cat-btn-${id}`;
-                btn.textContent = CAT_NAMES[id];
-                btn.onclick = () => { state.currentCat = id; window.renderPOS(); };
-                bar.appendChild(btn);
-            });
-        };
+<div id="m-item" class="mask hide">
+  <div class="sheet">
+    <div class="sheet-hd" id="it-title">編輯品項</div>
+    <div class="sheet-bd">
+      <div class="infobox">改價格<b>只影響之後的新訂單</b>。已經結帳的紀錄永遠保留當時的成交價，分析數字不會被改動。</div>
+      <div class="fld">
+        <label>品名</label>
+        <input type="text" id="it-name" autocomplete="off" placeholder="例：桂花烏龍">
+      </div>
+      <div class="fld">
+        <label>分類</label>
+        <select id="it-cat"></select>
+      </div>
+      <div class="fld" id="it-price-wrap">
+        <label>價格 (NT$)</label>
+        <input type="number" id="it-price" inputmode="numeric" placeholder="0">
+      </div>
+      <button class="chk" id="it-custom" onclick="toggleChk('it-custom')">
+        <span class="bx">✓</span><span>結帳時才輸入金額<span class="sub">像「甜點或伴手禮」這種每天不一樣的品項</span></span>
+      </button>
+      <button class="chk" id="it-to" onclick="toggleChk('it-to')">
+        <span class="bx">✓</span><span>這是外帶價品項<span class="sub">分析時會算進「外帶」，例如「冰美式(外)」</span></span>
+      </button>
+      <button class="chk" id="it-internal" onclick="toggleChk('it-internal')">
+        <span class="bx">✓</span><span>內部 / 招待<span class="sub">營收分析時會另外列出，例如「自己人」</span></span>
+      </button>
+    </div>
+    <div class="sheet-ft">
+      <button class="btn" onclick="closeModal('m-item')">取消</button>
+      <button class="btn p" onclick="saveItem()">儲存</button>
+    </div>
+  </div>
+</div>
 
-        window.renderPOS = () => {
-            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('category-active'));
-            const activeBtn = document.getElementById(`cat-btn-${state.currentCat}`);
-            if(activeBtn) activeBtn.classList.add('category-active');
+<div id="m-pin" class="mask hide">
+  <div class="sheet sm">
+    <div class="sheet-bd ctr">
+      <div class="icon info">🔑</div>
+      <h3>管理者設定</h3>
+      <p style="margin-bottom:18px">請輸入 4 位數管理密碼</p>
+      <input type="password" id="pin-input" class="big" inputmode="numeric" maxlength="4" placeholder="••••"
+             style="width:100%;padding:16px;border:2px solid var(--line);border-radius:12px;font-size:32px;font-weight:900;text-align:center;letter-spacing:.3em;outline:none">
+    </div>
+    <div class="sheet-ft">
+      <button class="btn" onclick="closeModal('m-pin')">取消</button>
+      <button class="btn p" onclick="submitPin()">進入</button>
+    </div>
+  </div>
+</div>
 
-            const grid = document.getElementById('menu-grid');
-            grid.innerHTML = '';
-            MENU[state.currentCat].forEach(item => {
-                const btn = document.createElement('button');
-                btn.className = "bg-white p-6 rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-200 active:bg-blue-50 transition-all flex flex-col items-center justify-center gap-2";
-                btn.innerHTML = `<span class="font-black text-slate-800 text-lg">${item.name}</span><span class="text-blue-500 font-bold bg-blue-50 px-3 py-1 rounded-full text-sm">${item.price ? 'NT$ ' + item.price : '輸入金額'}</span>`;
-                btn.onclick = () => {
-                    if (item.custom) {
-                        window.toggleModal('price-modal', true);
-                        const input = document.getElementById('custom-price-input');
-                        input.value = '';
-                        setTimeout(()=>input.focus(), 100);
-                    } else {
-                        window.addToCart(item.name, item.price);
-                    }
-                };
-                grid.appendChild(btn);
-            });
-        };
+<input type="file" id="importer" accept=".json,application/json" class="hide">
+<div id="toast" class="toast"></div>
 
-        window.addToCart = (name, price) => {
-            const existing = state.cart.find(i => i.name === name && i.price === price);
-            if (existing) { existing.qty++; } else { state.cart.push({ name, price, qty: 1 }); }
-            window.renderCart();
-        };
+<script>
+"use strict";
+/* =========================================================================
+   三宅千金 POS  v2.0.0
+   單一檔案 / 零外部連線 / 資料完全存在本機 localStorage
+   ========================================================================= */
+var APP_VERSION = '2.5.0';
+var K_DATA     = 'sanzhai_pos_v2';
+var K_META     = 'sanzhai_pos_meta_v2';
+var K_MENU     = 'sanzhai_pos_menu_v2';        // 管理者改過的菜單
+var K_LEGACY   = 'tea_pos_v11_counter_blue';   // 舊版資料（自動搬移用）
+var K_MIGRATED = 'sanzhai_pos_migrated_v2';
 
-        window.renderCart = () => {
-            const container = document.getElementById('cart-items-container');
-            container.innerHTML = state.cart.length === 0 ? `<div class="text-center py-20 text-slate-300 font-bold italic">尚無點餐內容</div>` : '';
-            state.cart.forEach((item, idx) => {
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center p-4 bg-white rounded-xl border shadow-sm";
-                div.innerHTML = `
-                    <div class="flex-1">
-                        <div class="font-bold text-slate-700">${item.name}</div>
-                        <div class="text-xs text-blue-500 font-medium">NT$ ${item.price}</div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <div class="flex items-center bg-gray-100 rounded-lg p-1">
-                            <button class="w-7 h-7 bg-white rounded shadow-sm font-bold" onclick="window.updateCartQty(${idx}, -1)">-</button>
-                            <span class="px-3 font-bold text-sm">${item.qty}</span>
-                            <button class="w-7 h-7 bg-white rounded shadow-sm font-bold" onclick="window.updateCartQty(${idx}, 1)">+</button>
-                        </div>
-                        <div class="w-16 text-right font-black text-slate-800">NT$ ${item.price * item.qty}</div>
-                    </div>`;
-                container.appendChild(div);
-            });
-            window.updateTotals();
-        };
+/* ---------------- 預設菜單 ----------------
+   這是「出廠設定」。管理者在 App 裡改過之後，會存進 localStorage (K_MENU)，
+   之後就以那份為準；按「還原成預設菜單」會回到這裡的內容。
 
-        window.updateCartQty = (idx, delta) => {
-            if (state.cart[idx].qty + delta > 0) { state.cart[idx].qty += delta; } else { state.cart.splice(idx, 1); }
-            window.renderCart();
-        };
+   to:true       = 外帶價品項（用於內用/外帶分析）
+   internal:true = 內部/招待（分析時可與真實營收分開看）
+   custom:true   = 現場輸入金額
+   改價只影響之後的新單，歷史紀錄永遠保留當時的成交價
+--------------------------------------- */
+var DEFAULT_MENU = {
+  tea:{ label:'茶 TEA', items:[
+    {n:'福壽山手路茶',p:140},{n:'東方美人茶',p:150},{n:'古樹紅茶',p:160},{n:'普洱茶',p:180},
+    {n:'三宅焙茶(冰)',p:90},{n:'三宅青茶(冰)',p:90},{n:'雙花紅茶(冰)',p:100}
+  ]},
+  coffee:{ label:'精品咖啡', items:[
+    {n:'熱美式',p:90},{n:'冰美式',p:90},{n:'熱美式(外)',p:50,to:true},{n:'冰美式(外)',p:50,to:true},
+    {n:'熱拿鐵',p:120},{n:'冰拿鐵',p:120},{n:'熱拿鐵(外)',p:70,to:true},{n:'冰拿鐵(外)',p:70,to:true},
+    {n:'手沖咖啡（淺焙）',p:150},{n:'手沖咖啡（中深焙）',p:150},{n:'西西里咖啡',p:140}
+  ]},
+  nocaf:{ label:'無咖啡因', items:[
+    {n:'蜂蜜檸檬氣泡飲',p:110},{n:'柚子氣泡飲',p:100},{n:'梅醋氣泡飲',p:100},{n:'橘子氣泡飲',p:120},
+    {n:'熱鮮奶',p:80},{n:'冰鮮奶',p:80},{n:'冬瓜茶',p:80}
+  ]},
+  food:{ label:'茶食甜點', items:[
+    {n:'豆干',p:90},{n:'毛豆',p:70},{n:'厚片(花生)',p:80},{n:'厚片(奶酥)',p:80},
+    {n:'布丁',p:90},{n:'布丁(外)',p:50,to:true},{n:'巴斯克',p:130},{n:'冰淇淋布朗尼',p:150},
+    {n:'杜拜巧克力',p:110},
+    {n:'甜點',p:null,custom:true},{n:'伴手禮',p:null,custom:true}
+  ]}
+};
 
-        window.updateTotals = () => {
-            const qty = state.cart.reduce((s, i) => s + i.qty, 0);
-            const price = state.cart.reduce((s, i) => s + (i.price * i.qty), 0);
-            document.getElementById('cart-total-qty').innerText = qty;
-            document.getElementById('cart-total-price').innerText = price.toLocaleString();
-        };
+/* 已經從菜單下架、但歷史紀錄裡還有的品項。
+   留著分類資訊，舊資料才不會在分析裡掉進「其他」。 */
+var RETIRED_IDX = {
+  '自己人':          {cat:'food', to:false, internal:true},
+  '甜點或伴手禮':    {cat:'food', to:false, internal:false},
+  '今日甜點':        {cat:'food', to:false, internal:false},
+  '厚片(玉米起司)':  {cat:'food', to:false, internal:false}
+};
+var CAT_ORDER = ['tea','coffee','nocaf','food'];
+var CAT_LABEL = {tea:'茶 TEA',coffee:'精品咖啡',nocaf:'無咖啡因',food:'茶食甜點',other:'其他'};
+var CAT_COLOR = {tea:'#0d9488',coffee:'#b45309',nocaf:'#2563eb',food:'#db2777',other:'#94a3b8'};
 
-        window.openCheckoutModal = () => {
-            if (state.cart.length === 0) return;
-            const content = document.getElementById('checkout-modal-content');
-            let total = 0;
-            let html = '<div class="space-y-3">';
-            state.cart.forEach(item => {
-                total += (item.price * item.qty);
-                html += `<div class="flex justify-between p-3 bg-gray-50 rounded-xl"><span>${item.name} x${item.qty}</span><b>NT$ ${item.price * item.qty}</b></div>`;
-            });
-            html += `</div><div class="mt-4 pt-4 border-t-2 border-dashed flex justify-between text-2xl font-black"><span>總計</span><span class="text-green-600">NT$ ${total.toLocaleString()}</span></div>`;
-            content.innerHTML = html;
-            window.toggleModal('checkout-modal', true);
-        };
+var PAYMENTS = [
+  {id:'cash',    label:'現金'},
+  {id:'linepay', label:'LINE Pay'},
+  {id:'card',    label:'信用卡'},
+  {id:'other',   label:'其他'}
+];
+var PAY_LABEL = {cash:'現金',linepay:'LINE Pay',card:'信用卡',other:'其他',unknown:'未記錄'};
+var PAY_COLOR = {cash:'#16a34a',linepay:'#65a30d',card:'#2563eb',other:'#7c3aed',unknown:'#94a3b8'};
 
-        window.finalizeTransaction = () => {
-            const today = new Date().toLocaleDateString('en-CA');
-            const total = state.cart.reduce((s, i) => s + (i.price * i.qty), 0);
-            const todayRecords = state.history.filter(r => r.date === today);
-            const nextNo = todayRecords.length + 1;
-            const formattedNo = String(nextNo).padStart(3, '0');
+/* 名稱 -> 分類/屬性，給舊資料回填用。
+   預設菜單和現行菜單都納進來，這樣就算品項被刪掉，舊紀錄還是查得到分類。 */
+var NAME_IDX = {};
+function rebuildNameIdx(){
+  NAME_IDX = {};
+  Object.keys(RETIRED_IDX).forEach(function(n){ NAME_IDX[n]=RETIRED_IDX[n]; });
+  [DEFAULT_MENU, state && state.menu].forEach(function(M){
+    if(!M) return;
+    CAT_ORDER.forEach(function(c){
+      if(!M[c] || !M[c].items) return;
+      M[c].items.forEach(function(it){
+        NAME_IDX[it.n] = {cat:c, to:!!it.to, internal:!!it.internal};
+      });
+    });
+  });
+}
 
-            const record = {
-                id: "REC-" + Date.now(),
-                dailyNo: formattedNo,
-                date: today,
-                time: new Date().toLocaleTimeString('zh-TW', { hour12: false }),
-                items: [...state.cart],
-                total: total
-            };
-            
-            state.history.unshift(record);
-            window.cleanOldRecords();
-            window.saveAndClean();
-            window.toggleModal('checkout-modal', false);
-        };
+var BACKUP_WARN_DAYS = 7;
+var BACKUP_HOT_DAYS  = 14;
+/* 提醒條只在這個時間之後才出現，避開營業尖峰讓人分心去按。
+   關掉之後當天不會再跳，隔天下午才會重新出現。 */
+var BANNER_AFTER_HOUR = 17;
 
-        window.saveAndClean = () => {
-            window.saveToLocal();
-            state.cart = [];
-            window.renderCart();
-        };
+/* 付款方式：目前只收現金，所以整個功能先隱藏起來。
+   紀錄裡還是會存 payment:'cash'，欄位留著，之後要開 LINE Pay / 信用卡
+   只要把這裡改成 true，點餐、結帳、帳單、分析就會一起出現。 */
+var SHOW_PAYMENT = false;
+var PALETTE = ['#2563eb','#0d9488','#f59e0b','#db2777','#7c3aed','#65a30d','#dc2626','#0891b2','#c2410c','#4f46e5'];
 
-        window.saveToLocal = () => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.history)); };
+/* ---------------- state ---------------- */
+var state = {
+  cart:[], history:[], menu:null, meta:{lastBackupAt:0,lastBackupCount:0,pin:'',bannerHiddenDate:''},
+  page:'pos', cat:'tea', payment:'cash', period:'month', from:'', to:'', busy:false,
+  editIdx:null, editCat:null
+};
 
-        // 匯出 Excel (CSV 格式)
-        window.exportToExcel = () => {
-            if (state.history.length === 0) {
-                window.showConfirmModal("目前沒有紀錄", "尚無任何交易紀錄可供匯出。", () => {});
-                return;
-            }
+/* ---------------- utils ---------------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function fmt(n){ return (Math.round(n)||0).toLocaleString('en-US'); }
+function fmtShort(n){
+  n = Math.round(n)||0;
+  if(n>=1000000) return (n/1000000).toFixed(n%1000000?1:0)+'M';
+  if(n>=10000)   return (n/1000).toFixed(0)+'k';
+  return String(n);
+}
+function pad(n,w){ var s=String(n); while(s.length<w) s='0'+s; return s; }
+function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1,2)+'-'+pad(d.getDate(),2); }
+function hms(d){ return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2)+':'+pad(d.getSeconds(),2); }
+function startOfDay(ts){ var d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+function daysAgo(n){ return startOfDay(Date.now()-n*86400000); }
+function uid(){ return 'R'+Date.now().toString(36)+Math.floor(Math.random()*1679616).toString(36); }
 
-            // CSV 標頭與 BOM (解決中文亂碼)
-            let csvContent = "\uFEFF"; 
-            csvContent += "日期,時間,流水號,品項明細,總金額\n";
+function toast(msg,kind){
+  var t=$('toast');
+  t.textContent=msg;
+  t.className='toast on'+(kind?' '+kind:'');
+  clearTimeout(toast._t);
+  toast._t=setTimeout(function(){ t.className='toast'+(kind?' '+kind:''); },2400);
+}
+function openModal(id){ $(id).classList.remove('hide'); }
+function closeModal(id){ $(id).classList.add('hide'); }
+function confirmBox(title,desc,onOk,opt){
+  opt=opt||{};
+  $('cf-title').textContent=title;
+  $('cf-desc').textContent=desc;
+  $('cf-icon').textContent=opt.icon||'⚠️';
+  $('cf-icon').className='icon '+(opt.kind||'warn');
+  $('cf-ok').textContent=opt.okText||'確認';
+  $('cf-ok').className='btn '+(opt.kind==='info'?'p':'p');
+  $('cf-cancel').style.display=opt.alertOnly?'none':'';
+  $('cf-ok').onclick=function(){ closeModal('m-confirm'); if(onOk) onOk(); };
+  openModal('m-confirm');
+}
+function alertBox(title,desc,icon){ confirmBox(title,desc,null,{alertOnly:true,okText:'知道了',kind:'info',icon:icon||'ℹ️'}); }
 
-            state.history.forEach(r => {
-                const itemNames = r.items.map(i => `${i.name}x${i.qty}`).join('; ');
-                // 處理可能包含逗號的內容
-                const line = [
-                    r.date,
-                    r.time,
-                    r.dailyNo,
-                    `"${itemNames}"`,
-                    r.total
-                ].join(",");
-                csvContent += line + "\n";
-            });
+/* ---------------- storage ---------------- */
+function load(){
+  try{ state.history = JSON.parse(localStorage.getItem(K_DATA)||'[]') || []; }
+  catch(e){ state.history=[]; }
+  if(!Array.isArray(state.history)) state.history=[];
+  try{
+    var m = JSON.parse(localStorage.getItem(K_META)||'{}');
+    state.meta.lastBackupAt = m.lastBackupAt||0;
+    state.meta.lastBackupCount = m.lastBackupCount||0;
+    state.meta.pin = m.pin||'';
+    state.meta.bannerHiddenDate = m.bannerHiddenDate||'';
+  }catch(e){}
+}
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            const timestamp = new Date().toISOString().slice(0, 10);
-            
-            link.setAttribute("href", url);
-            link.setAttribute("download", `三宅千金_歷史紀錄_${timestamp}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
+/* ---- 菜單（管理者可編輯，所以存在 localStorage 而不是寫死在程式裡）---- */
+function cloneMenu(m){ return JSON.parse(JSON.stringify(m)); }
+function validMenu(m){
+  if(!m || typeof m!=='object') return false;
+  for(var i=0;i<CAT_ORDER.length;i++){
+    var c=CAT_ORDER[i];
+    if(!m[c] || !Array.isArray(m[c].items)) return false;
+  }
+  return true;
+}
+function loadMenu(){
+  var m=null;
+  try{ m = JSON.parse(localStorage.getItem(K_MENU)||'null'); }catch(e){}
+  state.menu = validMenu(m) ? m : cloneMenu(DEFAULT_MENU);
+  rebuildNameIdx();
+}
+function saveMenu(){
+  try{
+    localStorage.setItem(K_MENU, JSON.stringify(state.menu));
+    rebuildNameIdx();
+    return true;
+  }catch(e){
+    toast('儲存失敗，裝置空間可能已滿','bad');
+    return false;
+  }
+}
+function saveMeta(){
+  try{ localStorage.setItem(K_META, JSON.stringify(state.meta)); }catch(e){}
+}
+/* 回傳 true 表示寫入成功。空間不足時不會靜默失敗 */
+function save(){
+  try{
+    localStorage.setItem(K_DATA, JSON.stringify(state.history));
+    return true;
+  }catch(e){
+    confirmBox('儲存空間已滿','這台裝置的瀏覽器儲存空間用完了，剛才的資料沒有存進去。請先到「資料」頁匯出一份完整備份，再清理較舊的紀錄。',null,{alertOnly:true,okText:'知道了',icon:'🛑'});
+    return false;
+  }
+}
 
-        window.renderHistory = () => {
-            const container = document.getElementById('history-list-container');
-            container.innerHTML = '';
-            
-            const today = new Date().toLocaleDateString('en-CA');
-            let todayTotal = 0;
+/* 舊版資料自動搬移（同一個網址下才讀得到） */
+function migrateLegacy(){
+  if(localStorage.getItem(K_MIGRATED)) return 0;
+  var raw = localStorage.getItem(K_LEGACY);
+  if(!raw){ localStorage.setItem(K_MIGRATED,'1'); return 0; }
+  var old;
+  try{ old = JSON.parse(raw); }catch(e){ old=null; }
+  if(!Array.isArray(old) || !old.length){ localStorage.setItem(K_MIGRATED,'1'); return 0; }
+  var have={}, i;
+  for(i=0;i<state.history.length;i++) have[state.history[i].id]=1;
+  var n=0;
+  for(i=0;i<old.length;i++){
+    var up = upgrade(old[i]);
+    if(!up || have[up.id]) continue;
+    state.history.push(up); have[up.id]=1; n++;
+  }
+  if(n){ sortHistory(); save(); }
+  localStorage.setItem(K_MIGRATED,'1');
+  return n;
+}
 
-            if (state.history.length === 0) {
-                container.innerHTML = `<div class="text-center py-40 bg-white rounded-3xl text-slate-300 font-bold border-2 border-dashed">無銷售紀錄</div>`;
-                document.getElementById('history-today-total').innerText = '0';
-                return;
-            }
+/* 把任何版本的紀錄正規化成 v2 格式 */
+function upgrade(r){
+  if(!r || typeof r!=='object') return null;
+  var items = (r.items||[]).map(function(it){
+    var name = it.n!=null ? it.n : it.name;
+    var meta = NAME_IDX[name] || {};
+    return {
+      n:  String(name==null?'（未知品項）':name),
+      p:  Number(it.p!=null?it.p:it.price)||0,
+      q:  Number(it.q!=null?it.q:it.qty)||1,
+      cat: it.cat || meta.cat || 'other',
+      to:  it.to!=null ? !!it.to : !!meta.to,
+      internal: it.internal!=null ? !!it.internal : !!meta.internal
+    };
+  });
+  var date = r.date || ymd(new Date(r.ts||Date.now()));
+  var time = r.time || '00:00:00';
+  var ts = Number(r.ts)||0;
+  if(!ts){
+    var hh = parseInt(time.slice(0,2),10); if(!(hh>=0&&hh<24)) hh=0;
+    var t2 = pad(hh,2)+time.slice(2);
+    ts = new Date(date+'T'+t2).getTime();
+    if(!ts || isNaN(ts)) ts = new Date(date+'T12:00:00').getTime() || Date.now();
+  }
+  var total = Number(r.total);
+  if(!total && total!==0) total = items.reduce(function(s,i){return s+i.p*i.q;},0);
+  return {
+    id: r.id || uid(),
+    dailyNo: r.dailyNo || '---',
+    date: date, time: time, ts: ts,
+    payment: r.payment || 'unknown',
+    items: items,
+    total: total
+  };
+}
+function sortHistory(){ state.history.sort(function(a,b){ return b.ts-a.ts; }); }
 
-            const grouped = state.history.reduce((acc, r) => {
-                if (!acc[r.date]) acc[r.date] = { list: [], sum: 0 };
-                acc[r.date].list.push(r);
-                acc[r.date].sum += r.total;
-                return acc;
-            }, {});
+/* ---------------- 備份狀態 ---------------- */
+function backupStatus(){
+  var n = state.history.length;
+  if(!n) return {level:'none', days:0, pending:0};
+  var pending = n - state.meta.lastBackupCount;
+  if(pending < 0) pending = 0;
+  var days = state.meta.lastBackupAt ? Math.floor((Date.now()-state.meta.lastBackupAt)/86400000) : 9999;
+  var level='ok';
+  if(!state.meta.lastBackupAt) level = pending>0 ? 'hot' : 'ok';
+  else if(days>=BACKUP_HOT_DAYS && pending>0) level='hot';
+  else if(days>=BACKUP_WARN_DAYS && pending>0) level='warn';
+  else if(pending>0) level='ok';
+  return {level:level, days:days, pending:pending};
+}
+function renderBanner(){
+  var s = backupStatus(), b=$('banner'), dot=$('nv-dot');
+  var need = (s.level==='warn' || s.level==='hot');
 
-            if (grouped[today]) {
-                todayTotal = grouped[today].sum;
-            }
+  // 導覽列上的小圓點隨時都在（安靜的提示，不擋事）
+  dot.classList.toggle('hide', !need);
 
-            Object.keys(grouped).sort((a,b) => b.localeCompare(a)).forEach(date => {
-                const isToday = date === today;
-                const section = document.createElement('div');
-                section.className = "space-y-4";
-                section.innerHTML = `
-                    <div class="flex justify-between items-center text-sm font-bold text-slate-500">
-                        <span class="${isToday ? 'bg-green-600' : 'bg-slate-400'} text-white px-3 py-1 rounded-full">
-                            ${isToday ? '今天 (' + date + ')' : date}
-                        </span>
-                        <span>當日小計 NT$ ${grouped[date].sum.toLocaleString()}</span>
-                    </div>`;
+  // 橫幅只在下午 5 點後出現，而且當天按過 ✕ 就不再跳
+  var afterHour   = new Date().getHours() >= BANNER_AFTER_HOUR;
+  var dismissedToday = state.meta.bannerHiddenDate === ymd(new Date());
+  var show = need && afterHour && !dismissedToday;
+  if(!show){ b.classList.add('hide'); return; }
+  var txt = s.days>=9999
+    ? '你還沒有備份過，目前有 '+s.pending+' 筆紀錄只存在這台裝置上'
+    : '已經 '+s.days+' 天沒有備份，累積 '+s.pending+' 筆新紀錄尚未備份';
+  b.className = 'banner'+(s.level==='hot'?' hot':'');
+  b.innerHTML = '<span>⚠️ '+esc(txt)+'</span>'+
+    '<button class="go" onclick="go(\'data\')"><span>立即備份</span></button>'+
+    '<button class="x" onclick="hideBanner()">✕</button>';
+  b.classList.remove('hide');
+}
+function hideBanner(){
+  state.meta.bannerHiddenDate = ymd(new Date());   // 記在 meta 裡，重新整理也不會又跳出來
+  saveMeta();
+  renderBanner();
+}
 
-                const list = document.createElement('div');
-                list.className = "grid gap-3";
+/* ---------------- 導覽 ---------------- */
+function go(page){
+  state.page=page;
+  ['pos','history','report','data','admin'].forEach(function(p){
+    $('pg-'+p).classList.toggle('hide', p!==page);
+  });
+  // 管理者頁不在導覽列上，進去時讓「備份」保持選取狀態
+  ['pos','history','report','data'].forEach(function(p){
+    $('nv-'+p).classList.toggle('on', p===page || (page==='admin' && p==='data'));
+  });
+  if(page==='history') renderHistory();
+  if(page==='report')  renderReport();
+  if(page==='data')    renderData();
+  if(page==='admin')   renderAdmin();
+}
 
-                grouped[date].list.forEach(record => {
-                    const card = document.createElement('div');
-                    card.id = `card-${record.id}`;
-                    card.className = "record-card bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center";
-                    const delBtnId = `del-btn-${record.id}`;
-                    
-                    card.innerHTML = `
-                        <div class="flex items-center gap-4 flex-1 overflow-hidden pr-4">
-                            <div class="bg-slate-500 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
-                                ${record.dailyNo || '---'}
-                            </div>
-                            <div class="overflow-hidden">
-                                <div class="text-xs text-slate-400 font-mono mb-0.5">${record.time}</div>
-                                <div class="font-bold text-slate-700 truncate text-sm">${record.items.map(i => `${i.name}x${i.qty}`).join(', ')}</div>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-4">
-                            <div class="font-black text-slate-900">NT$ ${record.total.toLocaleString()}</div>
-                            <button id="${delBtnId}" class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-slate-300 hover:bg-red-500 hover:text-white transition-all">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                        </div>`;
-                    list.appendChild(card);
-                    
-                    setTimeout(() => {
-                        const btn = document.getElementById(delBtnId);
-                        if(btn) btn.onmousedown = (e) => { e.preventDefault(); window.askDelete(record.id); };
-                    }, 0);
-                });
+/* ---------------- POS ---------------- */
+function renderCats(){
+  var bar=$('catbar'); bar.innerHTML='';
+  CAT_ORDER.forEach(function(c){
+    var b=document.createElement('button');
+    b.className='cat'+(c===state.cat?' on':'');
+    b.textContent=state.menu[c].label;
+    b.onclick=function(){ state.cat=c; renderCats(); renderGrid(); };
+    bar.appendChild(b);
+  });
+}
+function renderGrid(){
+  var g=$('grid'); g.innerHTML='';
+  var list = state.menu[state.cat].items;
+  if(!list.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1">這個分類還沒有品項<br><span style="font-size:12px;font-weight:600">到「備份 → 管理者設定 → 菜單管理」新增</span></div>';
+    return;
+  }
+  list.forEach(function(it){
+    var b=document.createElement('button');
+    b.className='item'+(it.to?' to':'')+(it.internal?' internal':'');
+    b.innerHTML='<span class="nm">'+esc(it.n)+'</span>'+
+                '<span class="pr">'+(it.p==null?'輸入金額':'NT$ '+it.p)+'</span>';
+    b.onclick=function(){
+      if(it.custom){
+        state.customBase = it.n;          // 記住是「甜點」還是「伴手禮」
+        state.customCat  = state.cat;
+        $('cu-title').textContent = it.n;
+        $('cu-name').value=''; $('cu-price').value='';
+        $('cu-name').placeholder = '留空就記為「'+it.n+'」';
+        openModal('m-custom');
+        setTimeout(function(){ $('cu-price').focus(); },150);
+      } else {
+        addToCart({n:it.n,p:it.p,cat:state.cat,to:!!it.to,internal:!!it.internal});
+      }
+    };
+    g.appendChild(b);
+  });
+}
+function addToCart(o){
+  for(var i=0;i<state.cart.length;i++){
+    var c=state.cart[i];
+    if(c.n===o.n && c.p===o.p){ c.q++; renderCart(); return; }
+  }
+  state.cart.push({n:o.n,p:o.p,q:1,cat:o.cat||'other',to:!!o.to,internal:!!o.internal});
+  renderCart();
+}
+function addCustom(){
+  var v = parseInt($('cu-price').value,10);
+  if(!(v>0)){ toast('請輸入正確金額','bad'); return; }
+  var nm = ($('cu-name').value||'').trim() || state.customBase || '甜點';
+  addToCart({n:nm,p:v,cat:state.customCat||'food'});
+  closeModal('m-custom');
+}
+function cartQty(){ return state.cart.reduce(function(s,i){return s+i.q;},0); }
+function cartTotal(){ return state.cart.reduce(function(s,i){return s+i.p*i.q;},0); }
+function updQty(i,d){
+  var c=state.cart[i]; if(!c) return;
+  if(c.q+d>0) c.q+=d; else state.cart.splice(i,1);
+  renderCart();
+}
+function clearCart(){
+  if(!state.cart.length) return;
+  confirmBox('清空購物車？','目前 '+cartQty()+' 個品項會全部移除。',function(){
+    state.cart=[]; renderCart(); toast('已清空');
+  },{icon:'🧹'});
+}
+function renderPays(){
+  $('payblock').classList.toggle('hide', !SHOW_PAYMENT);
+  if(!SHOW_PAYMENT) return;                 // 只收現金時整組不顯示
+  var w=$('pays'); w.innerHTML='';
+  PAYMENTS.forEach(function(p){
+    var b=document.createElement('button');
+    b.className='pay'+(p.id===state.payment?' on':'');
+    b.textContent=p.label;
+    b.onclick=function(){ state.payment=p.id; renderPays(); };
+    w.appendChild(b);
+  });
+}
+function renderCart(){
+  var w=$('cartlist');
+  if(!state.cart.length){
+    w.innerHTML='<div class="empty">尚無點餐內容<br><span style="font-size:12px;font-weight:600">點左側品項加入</span></div>';
+  } else {
+    w.innerHTML='';
+    state.cart.forEach(function(c,i){
+      var d=document.createElement('div');
+      d.className='crow';
+      d.innerHTML=
+        '<div class="info"><div class="nm">'+esc(c.n)+'</div>'+
+        '<div class="pr">單價 <b>NT$ '+c.p+'</b>'+(c.to?' · 外帶':'')+(c.internal?' · 內部':'')+'</div></div>'+
+        '<div class="qty"><button class="qtb" data-a="m">−</button>'+
+        '<span class="n">'+c.q+'</span>'+
+        '<button class="qtb" data-a="p">+</button></div>'+
+        '<div class="sub">'+fmt(c.p*c.q)+'</div>';
+      d.querySelector('[data-a="m"]').onclick=function(){ updQty(i,-1); };
+      d.querySelector('[data-a="p"]').onclick=function(){ updQty(i, 1); };
+      w.appendChild(d);
+    });
+  }
+  $('cq').textContent = cartQty();
+  $('cp').textContent = fmt(cartTotal());
+  $('cobtn').disabled = state.cart.length===0;
+}
 
-                section.appendChild(list);
-                container.appendChild(section);
-            });
-            document.getElementById('history-today-total').innerText = todayTotal.toLocaleString();
-        };
+/* ---------------- 結帳 ---------------- */
+function openCheckout(){
+  if(!state.cart.length) return;
+  var h='';
+  state.cart.forEach(function(c){
+    h+='<div class="corow"><span>'+esc(c.n)+' ×'+c.q+'</span><b>NT$ '+fmt(c.p*c.q)+'</b></div>';
+  });
+  h+='<div class="cofin"><span>總計</span><span class="v">NT$ '+fmt(cartTotal())+'</span></div>';
+  if(SHOW_PAYMENT) h+='<div class="copay"><span>付款方式</span><span>'+esc(PAY_LABEL[state.payment])+'</span></div>';
+  $('co-body').innerHTML=h;
+  $('co-ok').disabled=false;
+  openModal('m-checkout');
+}
+function finalize(){
+  if(state.busy) return;                    // 防連點
+  if(!state.cart.length){ closeModal('m-checkout'); return; }
+  state.busy=true; $('co-ok').disabled=true;
+  try{
+    var now=new Date(), date=ymd(now);
+    // 流水號取「當日最大號 + 1」，刪除紀錄後也不會撞號
+    var maxNo=0;
+    for(var i=0;i<state.history.length;i++){
+      var r=state.history[i];
+      if(r.date===date){ var v=parseInt(r.dailyNo,10); if(v>maxNo) maxNo=v; }
+    }
+    var rec={
+      id:uid(), dailyNo:pad(maxNo+1,3), date:date, time:hms(now), ts:now.getTime(),
+      payment:state.payment,
+      items:state.cart.map(function(c){
+        return {n:c.n,p:c.p,q:c.q,cat:c.cat,to:!!c.to,internal:!!c.internal};
+      }),
+      total:cartTotal()
+    };
+    state.history.unshift(rec);
+    if(!save()){ state.history.shift(); return; }   // 寫入失敗就完整回滾
+    state.cart=[];
+    renderCart(); renderBanner();
+    closeModal('m-checkout');
+    toast('#'+rec.dailyNo+' 已完成 · NT$ '+fmt(rec.total),'good');
+  } finally {
+    state.busy=false; $('co-ok').disabled=false;
+  }
+}
 
-        window.askDelete = (id) => {
-            window.showConfirmModal("確定刪除此筆紀錄？", "刪除後今日營收將會自動扣除", () => {
-                const card = document.getElementById(`card-${id}`);
-                if (card) {
-                    card.classList.add('removing');
-                    setTimeout(() => {
-                        state.history = state.history.filter(r => r.id !== id);
-                        window.saveToLocal();
-                        window.renderHistory();
-                    }, 300);
-                }
-            });
-        };
+/* ---------------- 帳單 ---------------- */
+function renderHistory(){
+  var w=$('hlist'), today=ymd(new Date());
+  $('hsub').textContent='共 '+fmt(state.history.length)+' 筆紀錄'+
+    (state.history.length? '，自 '+state.history[state.history.length-1].date+' 起':'');
+  if(!state.history.length){
+    w.innerHTML='<div class="empty" style="background:#fff;border-radius:20px;border:2px dashed var(--line2);padding:80px 20px">尚無銷售紀錄</div>';
+    $('htoday').textContent='0'; return;
+  }
+  var groups={}, order=[];
+  state.history.forEach(function(r){
+    if(!groups[r.date]){ groups[r.date]={list:[],sum:0}; order.push(r.date); }
+    groups[r.date].list.push(r); groups[r.date].sum+=r.total;
+  });
+  order.sort(function(a,b){ return a<b?1:-1; });
+  $('htoday').textContent = fmt(groups[today]?groups[today].sum:0);
 
-        window.askClearAll = () => {
-            window.showConfirmModal("確定清空全部紀錄？", "這將會移除所有的歷史銷售數據，且無法還原。", () => {
-                state.history = [];
-                window.saveToLocal();
-                window.renderHistory();
-            });
-        };
+  var h='';
+  order.forEach(function(date){
+    var g=groups[date], isT=date===today;
+    h+='<div class="hgroup"><div class="ghd">'+
+       '<span class="gdate'+(isT?' today':'')+'">'+(isT?'今天 · ':'')+esc(date)+'</span>'+
+       '<span>'+g.list.length+' 筆 · 小計 NT$ '+fmt(g.sum)+'</span></div>';
+    g.list.forEach(function(r){
+      var names=r.items.map(function(i){ return i.n+'×'+i.q; }).join('、');
+      var pk=PAY_LABEL[r.payment]?r.payment:'unknown';
+      var payChip = SHOW_PAYMENT ? '<span class="chip '+pk+'">'+esc(PAY_LABEL[pk])+'</span>' : '';
+      h+='<div class="hcard" id="hc-'+esc(r.id)+'">'+
+         '<div class="hno">'+esc(r.dailyNo)+'</div>'+
+         '<div class="hinfo">'+
+           '<div class="hmeta"><span class="mono">'+esc(r.time)+'</span>'+payChip+'</div>'+
+           '<div class="hitems">'+esc(names||'（空白）')+'</div>'+
+         '</div>'+
+         '<div class="htot">NT$ '+fmt(r.total)+'</div>'+
+         '<button class="del" data-id="'+esc(r.id)+'">🗑</button>'+
+         '</div>';
+    });
+    h+='</div>';
+  });
+  w.innerHTML=h;
+  Array.prototype.forEach.call(w.querySelectorAll('.del'), function(b){
+    b.onclick=function(){ askDelete(b.getAttribute('data-id')); };
+  });
+}
+function askDelete(id){
+  var r=null;
+  for(var i=0;i<state.history.length;i++) if(state.history[i].id===id){ r=state.history[i]; break; }
+  if(!r) return;
+  confirmBox('刪除這筆紀錄？','#'+r.dailyNo+' · '+r.date+' · NT$ '+fmt(r.total)+'\n刪除後營收與分析都會一併扣除，且無法復原。',function(){
+    state.history=state.history.filter(function(x){ return x.id!==id; });
+    save(); renderHistory(); renderBanner(); toast('已刪除 #'+r.dailyNo);
+  },{icon:'🗑'});
+}
 
-        window.showConfirmModal = (title, desc, onConfirm) => {
-            document.getElementById('confirm-modal-title').innerText = title;
-            document.getElementById('confirm-modal-desc').innerText = desc;
-            const btn = document.getElementById('confirm-action-btn');
-            btn.onclick = () => { onConfirm(); window.closeConfirmModal(); };
-            document.getElementById('common-confirm-modal').classList.remove('hidden');
-        };
+/* ---------------- 圖表（純手繪 SVG，無任何外部程式庫）---------------- */
+function niceTicks(max,count){
+  if(max<=0) return [0];
+  var raw=max/count, mag=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10)), norm=raw/mag;
+  var step=(norm<=1?1:norm<=2?2:norm<=5?5:10)*mag;
+  // 最後一格一定要 >= 資料最大值，否則最高的長條會超出繪圖區被切掉
+  var out=[], v=0;
+  while(v < max - step*1e-9){ out.push(Math.round(v)); v+=step; }
+  out.push(Math.round(v));
+  return out;
+}
+function emptyChart(msg){
+  return '<div class="empty" style="padding:34px 10px;font-size:13px">'+esc(msg||'此區間沒有資料')+'</div>';
+}
+function barSVG(rows,opt){
+  opt=opt||{};
+  if(!rows.length || !rows.some(function(r){return r.v>0;})) return emptyChart();
+  var W=800, H=opt.h||230, ML=54, MR=10, MT=18, MB=32;
+  var IH=H-MT-MB, max=Math.max.apply(null,rows.map(function(r){return r.v;}));
+  var ticks=niceTicks(max,4); max=Math.max(ticks[ticks.length-1],1);
+  var cw=(W-ML-MR)/rows.length, bw=Math.min(cw*0.62,52), g='';
+  ticks.forEach(function(t){
+    var y=MT+IH-(t/max)*IH;
+    g+='<line x1="'+ML+'" y1="'+y.toFixed(1)+'" x2="'+(W-MR)+'" y2="'+y.toFixed(1)+'" stroke="#e2e8f0" stroke-width="1"/>'+
+       '<text x="'+(ML-9)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="12" fill="#94a3b8">'+fmtShort(t)+'</text>';
+  });
+  rows.forEach(function(r,i){
+    var hh=(r.v/max)*IH, x=ML+i*cw+(cw-bw)/2, y=MT+IH-hh;
+    if(r.v>0){
+      g+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(hh,2).toFixed(1)+
+         '" rx="4" fill="'+(r.c||opt.color||'#2563eb')+'"><title>'+esc(r.l)+'：'+fmt(r.v)+'</title></rect>';
+      if(rows.length<=16)
+        g+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-6).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">'+fmtShort(r.v)+'</text>';
+    }
+    if(!opt.skipLabel || i%opt.skipLabel===0)
+      g+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-MB+18)+'" text-anchor="middle" font-size="12" fill="#64748b">'+esc(r.l)+'</text>';
+  });
+  return '<svg viewBox="0 0 '+W+' '+H+'" class="chart">'+g+'</svg>';
+}
+function arcPath(cx,cy,R,r0,a1,a2,fill,title){
+  if(a2-a1>=Math.PI*2-1e-6)
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+((R+r0)/2)+'" fill="none" stroke="'+fill+'" stroke-width="'+(R-r0)+'"><title>'+esc(title)+'</title></circle>';
+  var lg=(a2-a1)>Math.PI?1:0;
+  function p(r,a){ return [(cx+r*Math.cos(a)).toFixed(2),(cy+r*Math.sin(a)).toFixed(2)]; }
+  var A=p(R,a1),B=p(R,a2),C=p(r0,a2),D=p(r0,a1);
+  return '<path d="M'+A[0]+' '+A[1]+'A'+R+' '+R+' 0 '+lg+' 1 '+B[0]+' '+B[1]+
+         'L'+C[0]+' '+C[1]+'A'+r0+' '+r0+' 0 '+lg+' 0 '+D[0]+' '+D[1]+'Z" fill="'+fill+'"><title>'+esc(title)+'</title></path>';
+}
+function donutBlock(rows,unit){
+  var total=rows.reduce(function(s,r){return s+r.v;},0);
+  if(!total) return emptyChart();
+  var a=-Math.PI/2, g='';
+  rows.forEach(function(r){
+    var a2=a+(r.v/total)*Math.PI*2;
+    g+=arcPath(90,90,72,45,a,a2,r.c,r.l+'：'+fmt(r.v));
+    a=a2;
+  });
+  g+='<text x="90" y="86" text-anchor="middle" font-size="13" fill="#94a3b8" font-weight="700">合計</text>'+
+     '<text x="90" y="107" text-anchor="middle" font-size="17" fill="#0f172a" font-weight="800">'+fmtShort(total)+'</text>';
+  var lg='';
+  rows.forEach(function(r){
+    lg+='<div class="lgr"><span class="sw" style="background:'+r.c+'"></span>'+
+        '<span class="n">'+esc(r.l)+'</span>'+
+        '<span class="p">'+Math.round(r.v/total*100)+'%</span></div>';
+  });
+  return '<div class="dn"><svg viewBox="0 0 180 180">'+g+'</svg><div class="lg">'+lg+'</div></div>';
+}
+function hbarBlock(rows,unit){
+  if(!rows.length) return emptyChart();
+  var max=Math.max.apply(null,rows.map(function(r){return r.v;}))||1, h='<div class="hb">';
+  rows.forEach(function(r,i){
+    h+='<div class="hbr"><div class="top"><span class="nm">'+esc(r.l)+'</span>'+
+       '<span class="vv">'+fmt(r.v)+(unit||'')+(r.sub?'<em>'+esc(r.sub)+'</em>':'')+'</span></div>'+
+       '<div class="track"><div class="fill" style="width:'+(r.v/max*100).toFixed(1)+'%;background:'+(r.c||PALETTE[i%PALETTE.length])+'"></div></div></div>';
+  });
+  return h+'</div>';
+}
 
-        window.closeConfirmModal = () => { document.getElementById('common-confirm-modal').classList.add('hidden'); };
+/* ---------------- 分析 ---------------- */
+/* ---------------- 期間選擇 ----------------
+   店只開五六日一，所以「近 7 天」意義不大，改以月份為主，
+   另外提供自訂起訖日期，任何區間都查得到。 */
+var PERIODS=[
+  {k:'today',     l:'今日'},
+  {k:'week',      l:'近 7 天'},
+  {k:'month',     l:'本月'},
+  {k:'lastmonth', l:'上個月'},
+  {k:'all',       l:'全部'},
+  {k:'custom',    l:'自訂區間'}
+];
+var WDN=['日','一','二','三','四','五','六'];
 
-        window.addCustomItem = () => {
-            const val = parseInt(document.getElementById('custom-price-input').value);
-            if(val > 0) { window.addToCart('今日甜點', val); window.toggleModal('price-modal', false); }
-        };
+function renderPeriods(){
+  var w=$('periods'); w.innerHTML='';
+  PERIODS.forEach(function(p){
+    var b=document.createElement('button');
+    b.className='chipbtn'+(String(p.k)===String(state.period)?' on':'');
+    b.textContent=p.l;
+    b.onclick=function(){
+      state.period=p.k;
+      if(p.k==='custom' && (!state.from || !state.to)){
+        var r=lastNDays(30);
+        state.from=r[0]; state.to=r[1];
+      }
+      renderPeriods(); renderReport();
+    };
+    w.appendChild(b);
+  });
+  var cr=$('customrange');
+  cr.classList.toggle('hide', state.period!=='custom');
+  if(state.period==='custom'){
+    $('dfrom').value=state.from||'';
+    $('dto').value=state.to||'';
+  }
+}
+function applyCustom(){
+  var a=$('dfrom').value, b=$('dto').value;
+  if(!a || !b){ toast('請選擇起訖日期','bad'); return; }
+  if(a>b){ var t=a; a=b; b=t; }
+  state.from=a; state.to=b;
+  renderPeriods(); renderReport();
+}
+function lastNDays(n){
+  var now=new Date();
+  return [ymd(new Date(daysAgo(n-1))), ymd(now)];
+}
+/* 回傳 [起, 迄] 兩個 yyyy-mm-dd 字串。日期字串可以直接比大小，不必轉時間戳。 */
+function periodRange(){
+  var now=new Date(), k=state.period;
+  if(k==='today')  { var d=ymd(now); return [d,d]; }
+  if(k==='week')   { return lastNDays(7); }
+  if(k==='month')  { return [ymd(new Date(now.getFullYear(), now.getMonth(), 1)), ymd(now)]; }
+  if(k==='lastmonth'){
+    return [ymd(new Date(now.getFullYear(), now.getMonth()-1, 1)),
+            ymd(new Date(now.getFullYear(), now.getMonth(), 0))];
+  }
+  if(k==='custom') { return [state.from||ymd(now), state.to||ymd(now)]; }
+  // all
+  if(!state.history.length) return [ymd(now), ymd(now)];
+  return [state.history[state.history.length-1].date, state.history[0].date];
+}
+function periodRecords(){
+  var r=periodRange(), a=r[0], b=r[1];
+  return state.history.filter(function(x){ return x.date>=a && x.date<=b; });
+}
+function rangeLabel(){
+  var r=periodRange();
+  return r[0]===r[1] ? r[0] : r[0]+' ～ '+r[1];
+}
 
-        window.toggleModal = (id, show) => { document.getElementById(id).classList.toggle('hidden', !show); };
+/* ---------------- 分析 ---------------- */
+function renderReport(){
+  renderPeriods();
+  var rs=periodRecords(), w=$('rbody');
+  var lbl=(PERIODS.filter(function(p){return String(p.k)===String(state.period);})[0]||{}).l||'';
+  $('rsub').textContent = lbl+'　'+rangeLabel()+'　共 '+rs.length+' 筆交易';
 
-        window.switchPage = (page) => {
-            document.getElementById('pos-page').classList.toggle('hidden', page !== 'pos');
-            document.getElementById('history-page').classList.toggle('hidden', page !== 'history');
-            document.getElementById('nav-pos-btn').classList.toggle('active-nav', page === 'pos');
-            document.getElementById('nav-history-btn').classList.toggle('active-nav', page === 'history');
-            if (page === 'history') window.renderHistory();
-        };
+  if(!rs.length){
+    w.innerHTML='<div class="empty" style="background:#fff;border-radius:20px;border:2px dashed var(--line2);padding:80px 20px">這個區間沒有交易紀錄</div>';
+    return;
+  }
 
-        window.startClock = () => {
-            const el = document.getElementById('clock-display');
-            const tick = () => { 
-                const now = new Date();
-                const datePart = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                const weekPart = now.toLocaleDateString('zh-TW', { weekday: 'narrow' });
-                const timePart = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                el.innerHTML = `<div>${datePart} (${weekPart})</div><div class="text-blue-400 font-bold">${timePart}</div>`; 
-            };
-            setInterval(tick, 1000); tick();
-        };
-    </script>
+  /* ---- 彙總 ---- */
+  var gross=0, internal=0, qty=0, dineRev=0, toRev=0, dineQ=0, toQ=0;
+  var byDay={}, byHour={}, byWeek={}, byCat={}, byItem={}, byPay={}, pairs={};
+  var txWithDrink=0, txWithBoth=0;
+
+  rs.forEach(function(r){
+    gross+=r.total;
+    byDay[r.date]=(byDay[r.date]||0)+r.total;
+    var d=new Date(r.ts);
+    byHour[d.getHours()]=(byHour[d.getHours()]||0)+r.total;
+    byWeek[d.getDay()]=(byWeek[d.getDay()]||0)+r.total;
+    var pk=PAY_LABEL[r.payment]?r.payment:'unknown';
+    byPay[pk]=(byPay[pk]||0)+r.total;
+
+    var hasFood=false, hasDrink=false, names=[];
+    r.items.forEach(function(it){
+      var sub=it.p*it.q, c=it.cat||'other';
+      qty+=it.q;
+      if(it.internal) internal+=sub;
+      byCat[c]=(byCat[c]||0)+sub;
+      if(!byItem[it.n]) byItem[it.n]={rev:0,q:0};
+      byItem[it.n].rev+=sub; byItem[it.n].q+=it.q;
+      if(it.to){ toRev+=sub; toQ+=it.q; } else if(!it.internal){ dineRev+=sub; dineQ+=it.q; }
+      if(c==='food') hasFood=true; else hasDrink=true;
+      if(names.indexOf(it.n)<0) names.push(it.n);
+    });
+    if(hasDrink) txWithDrink++;
+    if(hasDrink && hasFood) txWithBoth++;
+
+    // 同一張單裡兩兩配對，算最常一起被買的組合
+    for(var a=0;a<names.length;a++){
+      for(var b=a+1;b<names.length;b++){
+        var key = names[a]<names[b] ? names[a]+' ＋ '+names[b] : names[b]+' ＋ '+names[a];
+        pairs[key]=(pairs[key]||0)+1;
+      }
+    }
+  });
+
+  var dayKeys=Object.keys(byDay).sort();
+  var dayCount=dayKeys.length;
+  var avg=gross/rs.length;
+  var best=dayKeys.slice().sort(function(a,b){ return byDay[b]-byDay[a]; })[0];
+
+  /* ---- KPI ---- */
+  var h='<div class="kpis">'+
+    kpi('營業額','NT$ '+fmt(gross), rs.length+' 筆交易','hi')+
+    kpi('銷售數量',fmt(qty)+' 份','平均每單 '+(qty/rs.length).toFixed(1)+' 樣')+
+    kpi('客單價','NT$ '+fmt(avg),'平均每筆金額')+
+    kpi('營業天數',dayCount+' 天','日均 NT$ '+fmt(gross/dayCount))+
+    kpi('最高的一天','NT$ '+fmt(byDay[best]), best+'（週'+WDN[new Date(best+'T12:00:00').getDay()]+'）')+
+    (internal>0 ? kpi('扣除內部後','NT$ '+fmt(gross-internal),'內部/招待 NT$ '+fmt(internal)) : '')+
+    '</div>';
+
+  h+='<div class="cards">';
+
+  /* ---- 每日營收長條圖 ---- */
+  var dayRows;
+  if(dayKeys.length>62){
+    var byMonth={};
+    dayKeys.forEach(function(d){ var m=d.slice(0,7); byMonth[m]=(byMonth[m]||0)+byDay[d]; });
+    dayRows=Object.keys(byMonth).sort().map(function(m){ return {l:m.slice(2),v:byMonth[m]}; });
+    h+=card('營業額趨勢（每月）','區間超過兩個月，改以月份彙總',barSVG(dayRows,{h:250}),'wide');
+  } else {
+    dayRows=dayKeys.map(function(d){
+      var dt=new Date(d+'T12:00:00');
+      return {l:(dt.getMonth()+1)+'/'+dt.getDate()+'('+WDN[dt.getDay()]+')', v:byDay[d]};
+    });
+    h+=card('每日營業額',dayCount+' 個營業日　最高：'+best+'　NT$ '+fmt(byDay[best]),
+            barSVG(dayRows,{h:250,skipLabel:dayKeys.length>18?Math.ceil(dayKeys.length/14):0}),'wide');
+  }
+
+  /* ---- 品項排行（合併成一張：以銷量排序，旁邊帶營業額）---- */
+  var itemRows=Object.keys(byItem).map(function(n){
+      var it=byItem[n];
+      return {l:n, v:it.q, sub:'NT$ '+fmt(it.rev)+'　'+(it.rev/gross*100).toFixed(1)+'%'};
+    }).sort(function(a,b){ return b.v-a.v; }).slice(0,15);
+  h+=card('品項排行 TOP '+itemRows.length,'依銷售份數排序，右側灰字是該品項的營業額與佔比',
+          hbarBlock(itemRows,' 份'),'wide');
+
+  /* ---- 加購與搭配 ---- */
+  var addOnPct = txWithDrink ? (txWithBoth/txWithDrink*100) : 0;
+  var addBody='<div class="kpis" style="margin-bottom:0">'+
+    kpi('加購率', addOnPct.toFixed(0)+'<small>%</small>', txWithBoth+' / '+txWithDrink+' 筆飲料單有加茶食')+
+    kpi('平均每單', (qty/rs.length).toFixed(1)+'<small> 樣</small>', '共 '+fmt(qty)+' 份 / '+rs.length+' 筆')+
+    '</div>';
+  h+=card('加購狀況','有點飲料的單子裡，有多少比例同時點了茶食甜點',addBody);
+
+  /* ---- 品類佔比 ---- */
+  var catRows=CAT_ORDER.concat(['other']).filter(function(c){ return byCat[c]; })
+    .map(function(c){ return {l:CAT_LABEL[c]||c, v:byCat[c], c:CAT_COLOR[c]||'#94a3b8'}; })
+    .sort(function(a,b){ return b.v-a.v; });
+  h+=card('品類佔比','各分類的營業額貢獻',donutBlock(catRows));
+
+  /* ---- 最常搭配 ---- */
+  var pairRows=Object.keys(pairs).map(function(k){ return {l:k, v:pairs[k]}; })
+    .sort(function(a,b){ return b.v-a.v; })
+    .filter(function(x){ return x.v>=2; }).slice(0,10);
+  h+=card('最常一起買的組合', pairRows.length?'可以拿來想套餐或加購搭配':'目前還沒有出現 2 次以上的固定組合',
+          pairRows.length?hbarBlock(pairRows,' 次'):emptyChart('資料還不夠，多累積幾天再看'),'wide');
+
+  /* ---- 時段 ---- */
+  var hrs=Object.keys(byHour).map(Number);
+  if(hrs.length){
+    var lo=Math.min.apply(null,hrs), hi=Math.max.apply(null,hrs), hourRows=[];
+    for(var t=lo;t<=hi;t++) hourRows.push({l:pad(t,2), v:byHour[t]||0, c:'#0d9488'});
+    var peak=hourRows.slice().sort(function(a,b){return b.v-a.v;})[0];
+    h+=card('時段分布','尖峰在 '+peak.l+':00（NT$ '+fmt(peak.v)+'）',barSVG(hourRows,{h:200}),'wide');
+  }
+
+  /* ---- 星期（只顯示有營業的日子）---- */
+  var wkRows=[];
+  for(var d0=0;d0<7;d0++) if(byWeek[d0]) wkRows.push({l:'週'+WDN[d0], v:byWeek[d0], c:'#7c3aed'});
+  if(wkRows.length>=2){
+    var bw=wkRows.slice().sort(function(a,b){return b.v-a.v;})[0];
+    h+=card('星期分布','只列出有營業的日子　最強：'+bw.l,barSVG(wkRows,{h:200}));
+  }
+
+  /* ---- 內用 / 外帶 ---- */
+  if(toRev>0||dineRev>0){
+    h+=card('內用 / 外帶','依「(外)」品項判定',hbarBlock([
+      {l:'內用', v:dineRev, c:'#2563eb', sub:dineQ+' 份'},
+      {l:'外帶', v:toRev,  c:'#0891b2', sub:toQ+' 份'}
+    ],''));
+  }
+
+  /* ---- 付款方式（目前只收現金，預設不顯示）---- */
+  if(SHOW_PAYMENT){
+    var payRows=Object.keys(byPay).map(function(p){ return {l:PAY_LABEL[p],v:byPay[p],c:PAY_COLOR[p]}; })
+      .sort(function(a,b){ return b.v-a.v; });
+    h+=card('付款方式','對帳用'+(byPay.unknown?'（舊資料沒有記錄付款方式）':''),donutBlock(payRows));
+  }
+
+  h+='</div>';
+
+  if(internal>0)
+    h+='<div class="note">有品項被標記為<b>內部／招待</b>，金額已在上方 KPI 中另外列出，不影響營業額的顯示。要調整哪些品項算內部，到「備份 → 管理者設定 → 菜單管理」編輯該品項。</div>';
+
+  w.innerHTML=h;
+}
+function kpi(l,v,s,cls){
+  return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="l">'+esc(l)+'</div><div class="v">'+v+'</div>'+
+         (s?'<div class="s">'+esc(s)+'</div>':'')+'</div>';
+}
+function card(title,sub,body,cls){
+  return '<div class="card'+(cls?' '+cls:'')+'"><h3>'+esc(title)+'</h3><div class="cs">'+esc(sub)+'</div>'+body+'</div>';
+}
+
+/* ---------------- 備份頁（給每天在用的人看，畫面上只有一件事）---------------- */
+function renderData(){
+  var n=state.history.length, s=backupStatus();
+  var cls = s.level==='hot' ? 'bad' : s.level==='warn' ? 'warn' : ((n && s.pending===0) ? 'ok' : '');
+  var lastTxt = state.meta.lastBackupAt
+    ? new Date(state.meta.lastBackupAt).toLocaleString('zh-TW',
+        {hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+    : '從未備份';
+  var subTxt = !n ? '目前沒有任何紀錄'
+    : (s.pending>0 ? '還有 '+fmt(s.pending)+' 筆紀錄沒有備份' : '全部 '+fmt(n)+' 筆都已經備份 ✓');
+
+  var h='<div class="bigwrap">';
+  h+='<div class="bigstat '+cls+'"><div class="l">上次備份</div>'+
+     '<div class="v">'+esc(lastTxt)+'</div><div class="s">'+esc(subTxt)+'</div></div>';
+  h+='<button class="bigbtn" onclick="exportJSON()">完整備份<small>按一下，然後選「儲存到檔案」</small></button>';
+  h+='<div class="steps"><h4>備份步驟</h4><ol>'+
+       '<li>按上面藍色的<b>「完整備份」</b></li>'+
+       '<li>在跳出來的選單裡選<b>「儲存到檔案」</b></li>'+
+       '<li>存到 <b>iCloud 雲碟</b> 裡的「三宅千金備份」資料夾</li>'+
+       '<li>每週做一次就好，檔案不用清理</li>'+
+     '</ol></div>';
+  h+='<button class="admlink" onclick="openAdmin()">'+
+       '<span class="ic">⚙️</span>'+
+       '<span class="tx">管理者設定<small>菜單改價、報表匯出、資料還原</small></span>'+
+       '<span class="ar">›</span>'+
+     '</button>';
+  h+='</div>';
+  $('dbody').innerHTML=h;
+}
+
+/* ---------------- 管理者頁 ---------------- */
+function openAdmin(){
+  if(state.meta.pin){
+    $('pin-input').value='';
+    openModal('m-pin');
+    setTimeout(function(){ $('pin-input').focus(); },150);
+  } else {
+    go('admin');
+  }
+}
+function submitPin(){
+  var v=($('pin-input').value||'').trim();
+  if(v===state.meta.pin){ closeModal('m-pin'); go('admin'); }
+  else { toast('密碼不正確','bad'); $('pin-input').value=''; }
+}
+
+function renderAdmin(){
+  var h='';
+
+  /* --- 菜單管理 --- */
+  h+='<div class="dsec"><h3>菜單管理</h3>'+
+     '<div class="ds">改價格、改名稱、新增或刪除品項。<br>'+
+     '<b>修改只影響之後的新訂單。</b>已經結帳的紀錄永遠保留當時的成交價，歷史營收和分析數字不會因為改價而變動。</div>';
+  CAT_ORDER.forEach(function(c){
+    var items=state.menu[c].items;
+    h+='<div class="mcat"><h4>'+esc(state.menu[c].label)+'　'+items.length+' 項</h4>';
+    items.forEach(function(it,i){
+      var tags='';
+      if(it.custom)   tags+='<span class="mtag custom">輸入金額</span>';
+      if(it.to)       tags+='<span class="mtag to">外帶</span>';
+      if(it.internal) tags+='<span class="mtag internal">內部</span>';
+      h+='<div class="mrow">'+
+         '<span class="mn">'+esc(it.n)+'</span>'+tags+
+         '<span class="mp">'+(it.p==null?'—':'NT$ '+it.p)+'</span>'+
+         '<button class="mbtn" data-act="up"  data-c="'+c+'" data-i="'+i+'"'+(i===0?' disabled':'')+'>↑</button>'+
+         '<button class="mbtn" data-act="dn"  data-c="'+c+'" data-i="'+i+'"'+(i===items.length-1?' disabled':'')+'>↓</button>'+
+         '<button class="mbtn" data-act="ed"  data-c="'+c+'" data-i="'+i+'">✏️</button>'+
+         '<button class="mbtn dg" data-act="del" data-c="'+c+'" data-i="'+i+'">🗑</button>'+
+         '</div>';
+    });
+    h+='<button class="addbtn" data-act="add" data-c="'+c+'">＋ 新增品項到「'+esc(state.menu[c].label)+'」</button></div>';
+  });
+  h+='<div class="brow"><button class="btn d" onclick="resetMenu()">↩ 還原成預設菜單</button></div></div>';
+
+  /* --- 報表匯出 --- */
+  h+='<div class="dsec"><h3>報表匯出（CSV）</h3>'+
+     '<div class="ds">給 Excel 或記帳老師用的報表。<b>CSV 不能還原回系統</b>，而且隨時可以從完整備份重新產生，所以不需要固定保留——需要的時候再匯出就好。<br>'+
+     '「品項明細」是一行一個品項，可以做樞紐分析；「交易明細」是一行一筆帳，適合純對帳。</div>'+
+     '<div class="brow">'+
+       '<button class="btn lg" onclick="exportCSV(\'item\')">📊 品項明細 CSV</button>'+
+       '<button class="btn lg" onclick="exportCSV(\'tx\')">📄 交易明細 CSV</button>'+
+     '</div></div>';
+
+  /* --- 還原 --- */
+  h+='<div class="dsec"><h3>從備份檔還原</h3>'+
+     '<div class="ds">選擇之前匯出的 JSON 備份檔。資料會用<b>合併</b>的方式加入：已經存在的紀錄自動略過，目前 iPad 上的紀錄也不會被刪掉。所以選錯檔案或重複匯入都不會弄壞東西。</div>'+
+     '<div class="brow"><button class="btn lg" onclick="pickImport()">📥 選擇備份檔</button></div></div>';
+
+  /* --- 資料狀態 --- */
+  var n=state.history.length, s=backupStatus(), bytes=0;
+  try{ bytes=((localStorage.getItem(K_DATA)||'').length + (localStorage.getItem(K_MENU)||'').length)*2; }catch(e){}
+  var span = n ? state.history[n-1].date+' ～ '+state.history[0].date : '—';
+  var scls = s.level==='hot'?'bad' : s.level==='warn'?'warn' : ((n&&s.pending===0)?'ok':'');
+  h+='<div class="dsec"><h3>資料狀態</h3><div class="stats">'+
+       stat('紀錄總數',fmt(n)+' 筆')+
+       stat('日期範圍',span)+
+       stat('佔用空間',(bytes/1024).toFixed(1)+' KB')+
+       stat('未備份筆數',fmt(s.pending)+' 筆',scls)+
+     '</div></div>';
+
+  /* --- 管理密碼 --- */
+  h+='<div class="dsec"><h3>管理密碼</h3>'+
+     '<div class="ds">設定之後，要進入這個「管理者設定」頁面就得先輸入 4 位數密碼。<br>'+
+     '<b>這只是防止店員誤觸改到價格，不是資訊安全機制</b>——密碼寫在網頁原始碼裡，懂的人找得到。'+
+     '真的要鎖住 iPad，請用 iOS 內建的「設定 → 輔助使用 → 引導式取用」。</div>'+
+     '<div class="fld"><label>4 位數密碼（留空並儲存 = 取消密碼）</label>'+
+     '<input type="password" id="pinset" inputmode="numeric" maxlength="4" placeholder="'+
+       (state.meta.pin?'目前已設定，輸入新密碼以變更':'目前未設定')+'"></div>'+
+     '<div class="brow"><button class="btn p lg" onclick="setPin()">儲存密碼設定</button></div></div>';
+
+  /* --- 關於 --- */
+  h+='<div class="dsec"><h3>關於這個系統</h3>'+
+     '<div class="ds">版本 '+APP_VERSION+'<br>'+
+     '• 這個檔案<b>不會連線到任何外部網站</b>，斷網時功能完全相同<br>'+
+     '• 所有資料只存在這台 iPad 上，沒有伺服器，也沒有任何費用<br>'+
+     '• 沒有筆數上限，紀錄不會被自動刪除<br>'+
+     '• 請務必從<b>主畫面圖示</b>開啟，不要用 Safari 分頁（避免資料被 Safari 自動清除）</div>'+
+     '<div class="brow"><button class="btn" onclick="checkUpdate()">🔄 檢查更新</button></div></div>';
+
+  /* --- 危險區 --- */
+  h+='<div class="dsec danger"><h3 style="color:var(--bad)">危險區</h3>'+
+     '<div class="ds">清空後所有歷史紀錄與分析資料都會消失，<b>無法復原</b>。請先確認已經匯出完整備份。</div>'+
+     '<div class="brow"><button class="btn d lg" onclick="askClearAll()">🗑 清空全部紀錄</button></div></div>';
+
+  var w=$('abody');
+  w.innerHTML=h;
+  Array.prototype.forEach.call(w.querySelectorAll('[data-act]'), function(b){
+    var act=b.getAttribute('data-act'), c=b.getAttribute('data-c'), i=parseInt(b.getAttribute('data-i'),10);
+    b.onclick=function(){
+      if(act==='up')  moveItem(c,i,-1);
+      if(act==='dn')  moveItem(c,i, 1);
+      if(act==='ed')  openItemEditor(c,i);
+      if(act==='del') delItem(c,i);
+      if(act==='add') openItemEditor(c,null);
+    };
+  });
+}
+function stat(l,v,cls){
+  return '<div class="stat'+(cls?' '+cls:'')+'"><div class="l">'+esc(l)+'</div><div class="v">'+esc(v)+'</div></div>';
+}
+
+/* ---------------- 菜單編輯 ---------------- */
+function toggleChk(id){
+  var el=$(id);
+  el.classList.toggle('on');
+  if(id==='it-custom') $('it-price-wrap').style.display = el.classList.contains('on') ? 'none' : '';
+}
+function chkOn(id){ return $(id).classList.contains('on'); }
+function setChk(id,v){ $(id).classList.toggle('on', !!v); }
+
+function openItemEditor(cat, idx){
+  state.editCat=cat; state.editIdx=idx;
+  var it = (idx==null) ? {n:'',p:null} : state.menu[cat].items[idx];
+  $('it-title').textContent = (idx==null) ? '新增品項' : '編輯品項';
+  $('it-name').value  = it.n||'';
+  $('it-price').value = (it.p==null) ? '' : it.p;
+  var sel=$('it-cat'); sel.innerHTML='';
+  CAT_ORDER.forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c; o.textContent=state.menu[c].label;
+    if(c===cat) o.selected=true;
+    sel.appendChild(o);
+  });
+  setChk('it-custom', !!it.custom);
+  setChk('it-to', !!it.to);
+  setChk('it-internal', !!it.internal);
+  $('it-price-wrap').style.display = it.custom ? 'none' : '';
+  openModal('m-item');
+  setTimeout(function(){ $('it-name').focus(); },150);
+}
+
+function saveItem(){
+  var name=($('it-name').value||'').trim();
+  if(!name){ toast('請輸入品名','bad'); return; }
+  var custom=chkOn('it-custom'), price=null;
+  if(!custom){
+    price=parseInt($('it-price').value,10);
+    if(!(price>=0)){ toast('請輸入正確的價格','bad'); return; }
+  }
+  var newCat=$('it-cat').value;
+  var obj={n:name, p:custom?null:price};
+  if(chkOn('it-to'))       obj.to=true;
+  if(chkOn('it-internal')) obj.internal=true;
+  if(custom)               obj.custom=true;
+
+  var oc=state.editCat, oi=state.editIdx, backup=cloneMenu(state.menu);
+  if(oi==null)            state.menu[newCat].items.push(obj);
+  else if(newCat===oc)    state.menu[oc].items[oi]=obj;
+  else { state.menu[oc].items.splice(oi,1); state.menu[newCat].items.push(obj); }
+
+  if(!saveMenu()){ state.menu=backup; return; }
+  closeModal('m-item');
+  renderAdmin(); renderCats(); renderGrid();
+  toast((oi==null?'已新增「':'已更新「')+name+'」','good');
+}
+
+function delItem(cat,idx){
+  var it=state.menu[cat].items[idx];
+  if(!it) return;
+  confirmBox('刪除「'+it.n+'」？',
+    '這只是把按鈕從點餐畫面移除。\n已經賣出去的紀錄不會被刪掉，歷史營收和分析都不受影響。',
+    function(){
+      var backup=cloneMenu(state.menu);
+      state.menu[cat].items.splice(idx,1);
+      if(!saveMenu()){ state.menu=backup; return; }
+      renderAdmin(); renderCats(); renderGrid();
+      toast('已刪除「'+it.n+'」');
+    },{icon:'🗑'});
+}
+
+function moveItem(cat,idx,d){
+  var a=state.menu[cat].items, j=idx+d;
+  if(j<0 || j>=a.length) return;
+  var t=a[idx]; a[idx]=a[j]; a[j]=t;
+  if(!saveMenu()) return;
+  renderAdmin(); renderGrid();
+}
+
+function resetMenu(){
+  confirmBox('還原成預設菜單？',
+    '目前所有的菜單修改（改價、改名、新增、刪除）都會被覆蓋掉。\n歷史交易紀錄完全不受影響。',
+    function(){
+      state.menu=cloneMenu(DEFAULT_MENU);
+      if(!saveMenu()) return;
+      renderAdmin(); renderCats(); renderGrid();
+      toast('已還原成預設菜單');
+    },{icon:'↩️'});
+}
+
+function setPin(){
+  var el=$('pinset'); if(!el) return;
+  var v=(el.value||'').trim();
+  if(v===''){ state.meta.pin=''; saveMeta(); renderAdmin(); toast('已取消管理密碼'); return; }
+  if(!/^[0-9]{4}$/.test(v)){ toast('請輸入 4 位數字','bad'); return; }
+  state.meta.pin=v; saveMeta(); renderAdmin(); toast('管理密碼已設定','good');
+}
+
+function download(filename,text,mime){
+  var blob=new Blob([text],{type:(mime||'text/plain')+';charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=filename; a.style.display='none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },1500);
+}
+function stamp(){
+  var d=new Date();
+  return ymd(d)+'_'+pad(d.getHours(),2)+pad(d.getMinutes(),2);
+}
+function markBackedUp(){
+  state.meta.lastBackupAt=Date.now();
+  state.meta.lastBackupCount=state.history.length;
+  state.meta.bannerHiddenDate=''; saveMeta(); renderBanner(); if(state.page==='admin') renderAdmin(); else renderData();
+}
+function exportJSON(){
+  if(!state.history.length){ alertBox('沒有東西可以備份','目前還沒有任何交易紀錄。'); return; }
+  // 菜單一起備份，否則還原後改過的價格與品項會不見
+  var payload={app:'sanzhai-pos',version:APP_VERSION,exportedAt:new Date().toISOString(),
+               count:state.history.length,menu:state.menu,records:state.history};
+  download('三宅千金_完整備份_'+stamp()+'.json', JSON.stringify(payload), 'application/json');
+  markBackedUp();
+  toast('已產生完整備份，請選「儲存到檔案」→ iCloud 雲碟','good');
+}
+function csvCell(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+function exportCSV(kind){
+  if(!state.history.length){ alertBox('沒有東西可以匯出','目前還沒有任何交易紀錄。'); return; }
+  var rows=[], src=state.history.slice().sort(function(a,b){ return a.ts-b.ts; });
+  if(kind==='item'){
+    rows.push(['日期','時間','流水號','付款方式','品項','分類','內用/外帶','屬性','單價','數量','小計','該筆總額']);
+    src.forEach(function(r){
+      r.items.forEach(function(it){
+        rows.push([r.date,r.time,r.dailyNo,PAY_LABEL[r.payment]||r.payment,it.n,
+                   CAT_LABEL[it.cat]||it.cat, it.to?'外帶':'內用', it.internal?'內部/招待':'一般',
+                   it.p,it.q,it.p*it.q,r.total]);
+      });
+    });
+  } else {
+    rows.push(['日期','時間','流水號','付款方式','品項數','品項明細','總金額']);
+    src.forEach(function(r){
+      rows.push([r.date,r.time,r.dailyNo,PAY_LABEL[r.payment]||r.payment,
+                 r.items.reduce(function(s,i){return s+i.q;},0),
+                 r.items.map(function(i){return i.n+'×'+i.q;}).join('; '), r.total]);
+    });
+  }
+  var csv='﻿'+rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  download('三宅千金_'+(kind==='item'?'品項明細':'交易明細')+'_'+stamp()+'.csv', csv, 'text/csv');
+  toast('CSV 已匯出（此格式無法還原，請另存 JSON 備份）');
+}
+function pickImport(){ $('importer').value=''; $('importer').click(); }
+function doImport(file){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var data;
+    try{ data=JSON.parse(fr.result); }
+    catch(e){ alertBox('讀取失敗','這個檔案不是有效的 JSON 備份檔。請選擇之前用「完整備份 (JSON)」匯出的檔案。','🛑'); return; }
+    var recs = Array.isArray(data) ? data : (data && Array.isArray(data.records) ? data.records : null);
+    if(!recs){ alertBox('格式不符','檔案裡找不到交易紀錄。請確認選的是本系統匯出的備份檔。','🛑'); return; }
+    var have={}, i;
+    for(i=0;i<state.history.length;i++) have[state.history[i].id]=1;
+    var added=0, skipped=0, bad=0;
+    for(i=0;i<recs.length;i++){
+      var up=upgrade(recs[i]);
+      if(!up){ bad++; continue; }
+      if(have[up.id]){ skipped++; continue; }
+      state.history.push(up); have[up.id]=1; added++;
+    }
+    var msg;
+    sortHistory();
+    if(!added){
+      msg='檔案裡的 '+recs.length+' 筆紀錄都已經在系統中了，沒有新增任何東西。';
+    } else {
+      if(!save()) return;
+      renderBanner();
+      msg='新增 '+added+' 筆，略過重複 '+skipped+' 筆'+(bad?('，無法讀取 '+bad+' 筆'):'')+'。\n目前共 '+state.history.length+' 筆紀錄。';
+    }
+    if(state.page==='admin') renderAdmin(); else renderData();
+
+    // 備份檔裡若含菜單設定，另外問要不要一併還原（不會偷偷覆蓋現在的菜單）
+    var bm = data && data.menu;
+    if(validMenu(bm) && JSON.stringify(bm)!==JSON.stringify(state.menu)){
+      confirmBox('還原完成', msg+'\n\n這份備份裡還含有一份菜單設定，跟目前的不一樣。要連菜單也一起還原嗎？',
+        function(){
+          var backup=cloneMenu(state.menu);
+          state.menu=cloneMenu(bm);
+          if(!saveMenu()){ state.menu=backup; return; }
+          renderCats(); renderGrid();
+          if(state.page==='admin') renderAdmin();
+          toast('菜單也一併還原了','good');
+        },{icon:'✅',okText:'連菜單一起還原'});
+      return;
+    }
+    alertBox('還原完成', msg, '✅');
+  };
+  fr.onerror=function(){ alertBox('讀取失敗','無法讀取這個檔案。','🛑'); };
+  fr.readAsText(file);
+}
+function askClearAll(){
+  if(!state.history.length){ alertBox('已經是空的','目前沒有任何紀錄。'); return; }
+  var s=backupStatus();
+  var warn = s.pending>0
+    ? '⚠️ 你還有 '+s.pending+' 筆紀錄沒有備份，清空後這些資料就永遠找不回來了。'
+    : '你最近的備份包含了全部 '+state.history.length+' 筆紀錄。';
+  confirmBox('清空全部 '+state.history.length+' 筆紀錄？', warn+'\n這個動作無法復原。', function(){
+    confirmBox('真的要清空嗎？','這是最後一次確認。',function(){
+      state.history=[]; save();
+      state.meta.lastBackupCount=0; saveMeta();
+      if(state.page==='admin') renderAdmin(); else renderData(); renderBanner(); toast('已清空全部紀錄','bad');
+    },{icon:'🛑',okText:'我確定，清空'});
+  },{icon:'🗑',okText:'繼續'});
+}
+function checkUpdate(){
+  if(!('serviceWorker' in navigator)){ alertBox('無法檢查更新','這個瀏覽器不支援離線快取功能。'); return; }
+  navigator.serviceWorker.getRegistration().then(function(reg){
+    if(!reg){ alertBox('尚未啟用離線功能','目前不是從 https 網址或主畫面圖示開啟，所以離線快取沒有啟用。'); return; }
+    reg.update().then(function(){
+      alertBox('已檢查更新','若有新版本，關閉再重新開啟 App 就會套用。','🔄');
+    });
+  });
+}
+
+/* ---------------- 時鐘 ---------------- */
+function startClock(){
+  var el=$('clock'), lastHour=-1;
+  function tick(){
+    var n=new Date();
+    // 跨過整點時重算一次提醒條，這樣下午 5 點一到就會自己出現，不必重新整理
+    if(n.getHours()!==lastHour){ lastHour=n.getHours(); renderBanner(); }
+    var wd=['日','一','二','三','四','五','六'][n.getDay()];
+    el.innerHTML='<div class="d">'+n.getFullYear()+'/'+pad(n.getMonth()+1,2)+'/'+pad(n.getDate(),2)+' (週'+wd+')</div>'+
+                 '<div class="t mono">'+hms(n)+'</div>';
+  }
+  tick(); setInterval(tick,1000);
+}
+
+/* ---------------- 啟動 ---------------- */
+(function init(){
+  loadMenu();          // 先載菜單，NAME_IDX 才建得起來（舊資料回填會用到）
+  load();
+  var moved=migrateLegacy();
+  sortHistory();
+  renderCats(); renderGrid(); renderPays(); renderCart();
+  renderPeriods(); renderBanner(); startClock();
+  $('importer').addEventListener('change', function(){
+    if(this.files && this.files[0]) doImport(this.files[0]);
+  });
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  if(moved) setTimeout(function(){
+    alertBox('舊資料已自動搬移','從舊版系統找到 '+moved+' 筆交易紀錄，已經完整搬到新版並補上分類資訊。\n舊資料仍保留著沒有刪除。','📦');
+  },600);
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+})();
+</script>
 </body>
 </html>
